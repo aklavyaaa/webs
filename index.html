@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Aklavya's Runner - Animated Mobile & Desktop Code Studio</title>
+    <title>Aklavya's Runner - Mobile & Desktop Code Studio</title>
     <!-- FontAwesome & Google Fonts -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
@@ -134,7 +134,7 @@
             height: 100%;
             background: var(--accent-primary);
             border-radius: 10px;
-            animation: splashBar 2s cubic-bezier(0.65, 0, 0.35, 1) forwards;
+            animation: splashBar 1.6s cubic-bezier(0.65, 0, 0.35, 1) forwards;
             transform-origin: left;
         }
 
@@ -940,9 +940,8 @@
         <div class="preview-pane" id="previewPane">
             <button id="exitFsBtn" class="exit-fs"><i class="fa-solid fa-compress"></i> Exit</button>
             
-            <div class="preview-wrapper" id="previewWrapper">
-                <iframe id="outputFrame" name="outputFrame" src="about:blank"></iframe>
-            </div>
+            <!-- Dynamic Preview Mount Container -->
+            <div class="preview-wrapper" id="previewWrapper"></div>
 
             <!-- Console Log Drawer -->
             <div class="console-drawer" id="consoleDrawer">
@@ -987,6 +986,21 @@
 
         let cachedFirebaseSnapshot = {};
         let muteCdnNoise = true;
+        let currentBlobUrl = null;
+
+        // Clean blank preview card on load
+        function resetPreviewToBlank() {
+            if (currentBlobUrl) {
+                URL.revokeObjectURL(currentBlobUrl);
+                currentBlobUrl = null;
+            }
+            previewWrapper.innerHTML = `<div style="width:100%;height:100%;background:#ffffff;border-radius:12px;box-shadow:0 10px 30px rgba(0,0,0,0.08);display:flex;flex-direction:column;align-items:center;justify-content:center;color:#94a3b8;gap:8px;user-select:none;">
+                <i class="fa-solid fa-code" style="font-size:28px;opacity:0.4;"></i>
+                <span style="font-size:13px;font-weight:600;">Paste code and click <b>Run</b> to preview</span>
+            </div>`;
+        }
+
+        resetPreviewToBlank();
 
         // Splash Screen Dismissal & Local Token Check
         window.addEventListener('load', () => {
@@ -996,7 +1010,7 @@
                     splash.style.opacity = '0';
                     splash.style.visibility = 'hidden';
                 }
-            }, 2100);
+            }, 1700);
             
             syncTokenUI();
         });
@@ -1185,7 +1199,9 @@
                 document.getElementById('mobileTabPreview').classList.add('active');
                 editorPane.style.display = 'none';
                 previewPane.classList.add('mobile-active');
-                renderCode();
+                if (codeEditor.value.trim()) {
+                    renderCode();
+                }
             }
         }
 
@@ -1398,10 +1414,15 @@
             executeFind();
         }
 
-        // --- Render Execution Engine (100% Isolated Fresh srcdoc Environment Every Run) ---
+        // --- Render Execution Engine (Cross-Browser Isolated Blob + Dynamic Iframe) ---
         function renderCode() {
             const rawCode = codeEditor.value;
             clearConsole();
+
+            if (!rawCode.trim()) {
+                resetPreviewToBlank();
+                return;
+            }
             
             const consoleCaptureScript = `<script>
                 (function(){
@@ -1426,19 +1447,6 @@
                 })();
             <\/script>`;
 
-            // Replace the iframe completely and assign srcdoc so the browser creates an isolated JS realm with zero leftover globals
-            const oldFrame = document.getElementById('outputFrame');
-            const freshFrame = document.createElement('iframe');
-            freshFrame.id = 'outputFrame';
-            freshFrame.name = 'outputFrame';
-
-            if (!rawCode.trim()) {
-                freshFrame.src = 'about:blank';
-                oldFrame.replaceWith(freshFrame);
-                return;
-            }
-
-            // Inject console hook cleanly right after <head> (or prepend if no <head>) without breaking <!DOCTYPE html>
             let finalHtml = rawCode;
             if (/<head[^>]*>/i.test(finalHtml)) {
                 finalHtml = finalHtml.replace(/<head[^>]*>/i, match => `${match}\n${consoleCaptureScript}`);
@@ -1446,8 +1454,19 @@
                 finalHtml = `${consoleCaptureScript}\n${finalHtml}`;
             }
 
-            freshFrame.srcdoc = finalHtml;
-            oldFrame.replaceWith(freshFrame);
+            if (currentBlobUrl) {
+                URL.revokeObjectURL(currentBlobUrl);
+            }
+
+            const blob = new Blob([finalHtml], { type: 'text/html;charset=utf-8' });
+            currentBlobUrl = URL.createObjectURL(blob);
+
+            // Dynamically create a brand-new iframe node on every run
+            previewWrapper.innerHTML = '';
+            const freshFrame = document.createElement('iframe');
+            freshFrame.id = 'outputFrame';
+            freshFrame.src = currentBlobUrl;
+            previewWrapper.appendChild(freshFrame);
         }
 
         document.getElementById('runBtn').addEventListener('click', () => {
@@ -1569,7 +1588,8 @@
             if(confirm("Clear current code from editor?")) {
                 codeEditor.value = '';
                 updateStats();
-                renderCode();
+                resetPreviewToBlank();
+                clearConsole();
             }
         });
 

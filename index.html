@@ -315,6 +315,18 @@
             box-shadow: 0 5px 0px #047857;
         }
 
+        button.manage-btn {
+            background-color: #e11d48;
+            color: #ffffff;
+            border-color: #be123c;
+            box-shadow: 0 3px 0px #9f1239;
+        }
+
+        button.manage-btn:hover {
+            background-color: #f43f5e;
+            box-shadow: 0 5px 0px #9f1239;
+        }
+
         button.github-btn {
             background-color: #24292e;
             color: #ffffff;
@@ -408,7 +420,7 @@
             color: var(--text-secondary);
         }
 
-        /* --- Shared Modal Backdrop (Firebase, Publish & GitHub) --- */
+        /* --- Shared Modal Backdrops --- */
         .modal-backdrop {
             position: fixed;
             inset: 0;
@@ -434,7 +446,7 @@
             border: 2px solid var(--border-color);
             border-radius: 20px;
             width: 100%;
-            max-width: 460px;
+            max-width: 480px;
             padding: 20px;
             box-shadow: 0 20px 50px rgba(0, 0, 0, 0.3);
             display: flex;
@@ -517,6 +529,55 @@
             color: #1c1917;
             border-style: solid;
             border-color: #d97706;
+        }
+
+        /* Published Apps List (Manage Modal) */
+        .manage-apps-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            max-height: 240px;
+            overflow-y: auto;
+            padding: 2px;
+        }
+
+        .manage-app-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 9px 12px;
+            background: var(--bg-editor);
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+        }
+
+        .manage-app-info {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 12px;
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+
+        .manage-app-sub {
+            font-size: 10px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+        }
+
+        .manage-app-actions {
+            display: flex;
+            gap: 6px;
+        }
+
+        .manage-app-actions button {
+            padding: 5px 9px;
+            font-size: 11px;
+            transform: none;
+            box-shadow: none;
         }
 
         .gh-token-pill {
@@ -911,6 +972,7 @@
             <button id="runBtn" class="primary"><i class="fa-solid fa-play"></i> Run</button>
             <button id="firebaseOpenBtn" class="firebase-btn"><i class="fa-solid fa-fire"></i> Push</button>
             <button id="publishOpenBtn" class="publish-btn"><i class="fa-solid fa-rocket"></i> Publish</button>
+            <button id="manageOpenBtn" class="manage-btn"><i class="fa-solid fa-trash-can"></i> Manage</button>
             <button id="githubOpenBtn" class="github-btn"><i class="fa-brands fa-github"></i> GitHub</button>
             <button id="findBtn"><i class="fa-solid fa-magnifying-glass"></i> Find</button>
             <button id="downloadBtn"><i class="fa-solid fa-download"></i> Save</button>
@@ -954,11 +1016,33 @@
         </div>
     </div>
 
+    <!-- Manage / Delete Published Apps Modal -->
+    <div id="manageModalBackdrop" class="modal-backdrop">
+        <div class="dialog-card" style="max-width: 520px;">
+            <div class="find-header" style="font-size: 14px;">
+                <span><i class="fa-solid fa-trash-can" style="color: #e11d48;"></i> Manage &amp; Delete Published Projects</span>
+                <i class="fa-solid fa-xmark" style="cursor: pointer; font-size: 16px;" onclick="toggleManageModal(false)"></i>
+            </div>
+
+            <p style="font-size: 12px; color: var(--text-secondary); line-height: 1.4;">
+                Select any published project to delete it from both your <b>Firebase Database</b> and your <b>GitHub repository</b> simultaneously.
+            </p>
+
+            <div id="manageFetchState" style="font-size: 11px; font-weight: 700; color: var(--accent-primary);">Scanning projects...</div>
+            <div id="manageAppsList" class="manage-apps-list"></div>
+            <div id="manageLogBox" class="status-log-box"></div>
+
+            <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px;">
+                <button type="button" onclick="toggleManageModal(false)">Close</button>
+            </div>
+        </div>
+    </div>
+
     <!-- One-Click Publish Modal (Series Sync + Error Catching + Live Pages Build Tracker) -->
     <div id="publishModalBackdrop" class="modal-backdrop">
         <div class="dialog-card">
             <div class="find-header" style="font-size: 14px;">
-                <span><i class="fa-solid fa-rocket" style="color: #10b981;"></i> Publish & Verify Live Site</span>
+                <span><i class="fa-solid fa-rocket" style="color: #10b981;"></i> Publish &amp; Verify Live Site</span>
                 <i class="fa-solid fa-xmark" style="cursor: pointer; font-size: 16px;" onclick="togglePublishModal(false)"></i>
             </div>
 
@@ -1158,6 +1242,7 @@
         const githubModalBackdrop = document.getElementById('githubModalBackdrop');
         const firebaseModalBackdrop = document.getElementById('firebaseModalBackdrop');
         const publishModalBackdrop = document.getElementById('publishModalBackdrop');
+        const manageModalBackdrop = document.getElementById('manageModalBackdrop');
 
         let cachedFirebaseSnapshot = {};
         let muteCdnNoise = true;
@@ -1302,9 +1387,178 @@
             if (status === 401) return "GitHub Token invalid or expired (401 Unauthorized). Please update /gpat with a valid PAT.";
             if (status === 403) return `GitHub permission denied or rate limit reached (403): ${apiMessage || "Ensure PAT has 'repo' scope."}`;
             if (status === 404) return `GitHub repository or branch not found (404): ${apiMessage || "Verify aklavyaaa/webs exists."}`;
-            if (status === 409) return `GitHub commit conflict (409): Repository state changed during upload. Click Publish again.`;
+            if (status === 409) return `GitHub commit conflict (409): Repository state changed during upload. Try again.`;
             if (status === 422) return `GitHub validation error (422): ${apiMessage || "Invalid file path or branch."}`;
             return `GitHub API Error (${status}): ${apiMessage || "Unexpected response"}`;
+        }
+
+        // --- Manage / Delete Published Apps Modal & Logic ---
+        function toggleManageModal(state) {
+            if(state !== undefined) {
+                manageModalBackdrop.classList.toggle('open', state);
+            } else {
+                manageModalBackdrop.classList.toggle('open');
+            }
+            if(manageModalBackdrop.classList.contains('open')) {
+                document.getElementById('manageLogBox').style.display = 'none';
+                loadManageAppsList();
+            }
+        }
+
+        document.getElementById('manageOpenBtn').addEventListener('click', () => {
+            toggleManageModal(true);
+        });
+
+        function setManageStatus(htmlMsg, isError = false) {
+            const box = document.getElementById('manageLogBox');
+            box.style.display = 'block';
+            box.style.borderColor = isError ? '#ef4444' : '#e11d48';
+            box.style.color = isError ? '#ef4444' : 'var(--text-primary)';
+            box.innerHTML = htmlMsg;
+        }
+
+        async function loadManageAppsList() {
+            const stateLbl = document.getElementById('manageFetchState');
+            const container = document.getElementById('manageAppsList');
+            stateLbl.innerText = "Scanning Firebase & GitHub projects...";
+            container.innerHTML = "";
+
+            try {
+                const snapshot = await fbDatabase.ref('/').once('value');
+                const fbData = snapshot.val() || {};
+                let token = (fbData.gpat || cachedGpat || localStorage.getItem('aklavya_gh_pat') || "").trim();
+
+                const owner = "aklavyaaa";
+                const repo = "webs";
+                const branch = "main";
+                let ghFiles = [];
+
+                if (token) {
+                    const headers = { 'Authorization': `token ${token}`, 'Accept': 'application/vnd.github.v3+json' };
+                    const dirRes = await fetch(`https://api.github.com/repos/${owner}/${repo}/contents/?ref=${branch}`, { headers });
+                    if (dirRes.ok) {
+                        ghFiles = await dirRes.json();
+                    }
+                }
+
+                // Gather all distinct project numbers found in Firebase (webN) or GitHub (N.html)
+                const projectNumsSet = new Set();
+                Object.keys(fbData).forEach(k => {
+                    const m = k.match(/^web(\d+)$/i);
+                    if (m) projectNumsSet.add(parseInt(m[1], 10));
+                });
+                if (Array.isArray(ghFiles)) {
+                    ghFiles.forEach(f => {
+                        const m = f.name && f.name.match(/^(\d+)\.html$/i);
+                        if (m) projectNumsSet.add(parseInt(m[1], 10));
+                    });
+                }
+
+                const sortedNums = Array.from(projectNumsSet).sort((a, b) => a - b);
+                stateLbl.innerText = `Found ${sortedNums.length} published project${sortedNums.length === 1 ? '' : 's'}`;
+
+                if (sortedNums.length === 0) {
+                    container.innerHTML = `<div style="text-align:center; padding:20px; color:var(--text-secondary); font-size:12px;">No published projects found.</div>`;
+                    return;
+                }
+
+                sortedNums.forEach(num => {
+                    const webKey = `web${num}`;
+                    const fileName = `${num.html}`;
+                    const liveUrl = `https://${owner}.github.io/${repo}/${num}`;
+
+                    const row = document.createElement('div');
+                    row.className = 'manage-app-row';
+                    row.innerHTML = `
+                        <div class="manage-app-info">
+                            <span>Project #${num} (/${webKey} &amp; ${num}.html)</span>
+                            <span class="manage-app-sub"><a href="${liveUrl}" target="_blank" style="color:#10b981;text-decoration:none;">${liveUrl} ↗</a></span>
+                        </div>
+                        <div class="manage-app-actions">
+                            <button type="button" class="firebase-btn" onclick="loadProjectIntoEditor('${webKey}')"><i class="fa-solid fa-code"></i> Load</button>
+                            <button type="button" class="manage-btn" onclick="deletePublishedProject(${num}, '${webKey}', '${num}.html', this)"><i class="fa-solid fa-trash-can"></i> Delete</button>
+                        </div>
+                    `;
+                    container.appendChild(row);
+                });
+
+            } catch (err) {
+                stateLbl.innerText = "Error scanning projects";
+                setManageStatus(`⚠️ Could not load list: ${err.message}`, true);
+            }
+        }
+
+        async function loadProjectIntoEditor(webKey) {
+            setManageStatus(`⬇️ Loading <b>${webKey}</b> into editor...`);
+            try {
+                const snap = await fbDatabase.ref(webKey).once('value');
+                const val = snap.val();
+                if (val === null || val === undefined) {
+                    throw new Error(`Project ${webKey} does not exist in Firebase.`);
+                }
+                codeEditor.value = typeof val === 'string' ? val : JSON.stringify(val, null, 2);
+                updateStats();
+                renderCode();
+                toggleManageModal(false);
+            } catch (err) {
+                setManageStatus(`❌ Load Failed: ${err.message}`, true);
+            }
+        }
+
+        async function deletePublishedProject(num, webKey, fileName, btnEl) {
+            if (!confirm(`Are you sure you want to delete Project #${num}?\nThis will permanently delete:\n- Firebase node /${webKey}\n- GitHub file ${fileName}`)) {
+                return;
+            }
+
+            btnEl.disabled = true;
+            btnEl.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Deleting...`;
+            setManageStatus(`🗑️ Deleting Project #${num} from Firebase and GitHub...`);
+
+            const owner = "aklavyaaa";
+            const repo = "webs";
+            const branch = "main";
+
+            try {
+                // 1. Delete Firebase node
+                await fbDatabase.ref(webKey).remove();
+                delete cachedFirebaseSnapshot[webKey];
+
+                // 2. Delete GitHub file
+                let token = (cachedGpat || localStorage.getItem('aklavya_gh_pat') || "").trim();
+                if (!token) {
+                    const snap = await fbDatabase.ref('gpat').once('value');
+                    token = (snap.val() || "").trim();
+                }
+
+                if (token) {
+                    const headers = { 'Authorization': `token ${token}`, 'Accept': 'application/vnd.github.v3+json' };
+                    const fileRes = await fetch(`https://api.github.com/repos/${owner}/${repo}/contents/${fileName}?ref=${branch}`, { headers });
+                    if (fileRes.ok) {
+                        const fileData = await fileRes.json();
+                        const delPayload = {
+                            message: `Delete ${fileName} (${webKey}) via Aklavya's Runner`,
+                            sha: fileData.sha,
+                            branch: branch
+                        };
+                        const delRes = await fetch(`https://api.github.com/repos/${owner}/${repo}/contents/${fileName}`, {
+                            method: 'DELETE',
+                            headers: { ...headers, 'Content-Type': 'application/json' },
+                            body: JSON.stringify(delPayload)
+                        });
+                        if (!delRes.ok) {
+                            const errJson = await delRes.json().catch(() => ({}));
+                            console.warn("GitHub file deletion warning:", errJson.message);
+                        }
+                    }
+                }
+
+                setManageStatus(`✅ Successfully deleted Project #${num} (Firebase /${webKey} &amp; GitHub ${fileName}).`);
+                loadManageAppsList();
+            } catch (err) {
+                btnEl.disabled = false;
+                btnEl.innerHTML = `<i class="fa-solid fa-trash-can"></i> Delete`;
+                setManageStatus(`❌ Deletion Failed: ${err.message}`, true);
+            }
         }
 
         // --- One-Click Publish Engine (Series Sync + Rollback + Live Pages Verification) ---
@@ -1359,12 +1613,6 @@
             box.innerHTML = htmlMsg;
         }
 
-        function copyPublishedUrl(url, btn) {
-            navigator.clipboard.writeText(url);
-            btn.innerHTML = `<i class="fa-solid fa-check"></i> Copied`;
-            setTimeout(() => { btn.innerHTML = `<i class="fa-solid fa-copy"></i> Copy`; }, 2000);
-        }
-
         document.getElementById('publishOpenBtn').addEventListener('click', () => {
             if(!codeEditor.value.trim()) {
                 return alert("Paste or write your HTML code in the editor first!");
@@ -1416,7 +1664,7 @@
                 try {
                     snapshot = await fbDatabase.ref('/').once('value');
                 } catch (fbReadErr) {
-                    throw new Error(`Firebase Read Error: ${fbReadErr.message} (Check Realtime Database connection/rules)`);
+                    throw new Error(`Firebase Read Error: ${fbReadErr.message}`);
                 }
 
                 const existingData = snapshot.val() || {};
@@ -1435,21 +1683,16 @@
                     'Content-Type': 'application/json'
                 };
 
-                // Find highest webN in Firebase
                 let maxFbNum = 0;
-                const fbNums = [];
                 Object.keys(existingData).forEach(k => {
                     const m = k.match(/^web(\d+)$/i);
                     if (m) {
                         const n = parseInt(m[1], 10);
-                        fbNums.push(n);
                         if (n > maxFbNum) maxFbNum = n;
                     }
                 });
 
-                // Find highest N.html in GitHub repo root
                 let maxGhNum = 0;
-                const ghNums = [];
                 let ghRepoFiles = [];
                 let dirRes;
                 try {
@@ -1476,20 +1719,18 @@
                         const m = item.name && item.name.match(/^(\d+)\.html$/i);
                         if (m) {
                             const n = parseInt(m[1], 10);
-                            ghNums.push(n);
                             if (n > maxGhNum) maxGhNum = n;
                         }
                     });
                 }
 
-                // Detect any mismatch between Firebase webN and GitHub N.html
                 const nextNum = Math.max(maxFbNum, maxGhNum) + 1;
                 const nextWebKey = `web${nextNum}`;
                 const nextFileName = `${nextNum}.html`;
 
                 if (maxFbNum !== maxGhNum) {
                     mismatchBanner.style.display = 'block';
-                    mismatchBanner.innerHTML = `<i class="fa-solid fa-triangle-exclamation" style="color:#f59e0b;"></i> <b>Series Mismatch Auto-Resolved:</b> Firebase latest was <code>${maxFbNum ? 'web' + maxFbNum : 'none'}</code> while GitHub latest was <code>${maxGhNum ? maxGhNum + '.html' : 'none'}</code>. Auto-aligned next pair to <b>${nextWebKey}</b> ↔ <b>${nextFileName}</b>.`;
+                    mismatchBanner.innerHTML = `<i class="fa-solid fa-triangle-exclamation" style="color:#f59e0b;"></i> <b>Series Mismatch Auto-Resolved:</b> Firebase highest was <code>${maxFbNum ? 'web' + maxFbNum : 'none'}</code> while GitHub highest was <code>${maxGhNum ? maxGhNum + '.html' : 'none'}</code>. Auto-aligned next pair to <b>${nextWebKey}</b> ↔ <b>${nextFileName}</b>.`;
                 }
 
                 // --- STEP 2: Save Code to Firebase ---
@@ -1547,22 +1788,20 @@
                     throw new Error(formatGitHubApiError(ghPutRes.status, errJson.message));
                 }
 
-                // Commit succeeded; prevent rollback from here on since both sides match
                 firebaseSavedKey = null;
 
                 // --- STEP 4: Poll GitHub Pages Build & Live URL Readiness ---
                 const liveUrl = `https://${owner}.github.io/${repo}/${nextNum}`;
                 const startTime = Date.now();
-                const maxWaitMs = 5 * 60 * 1000; // 5 minutes max poll window
+                const maxWaitMs = 5 * 60 * 1000;
                 let isLive = false;
 
                 while (Date.now() - startTime < maxWaitMs) {
-                    if (runId !== activePublishRunId) return; // Aborted by a newer run
+                    if (runId !== activePublishRunId) return;
 
                     const elapsedSec = Math.floor((Date.now() - startTime) / 1000);
                     const mins = Math.floor(elapsedSec / 60);
                     const secs = String(elapsedSec % 60).padStart(2, '0');
-                    // Smoothly advance bar from 55% up to 96% while waiting on GitHub Pages CDN
                     const waitProgress = Math.min(96, 55 + (elapsedSec / 210) * 41);
 
                     setPubProgress(waitProgress, `Building GitHub Pages (${mins}:${secs})...`, renderSteps(
@@ -1572,7 +1811,6 @@
                         { cls: 'active', icon: '<i class="fa-solid fa-spinner fa-spin"></i>', text: `Waiting for GitHub Pages to go live (${mins}:${secs})...` }
                     ));
 
-                    // Check GitHub Pages latest build status
                     let buildStatus = "building";
                     try {
                         const buildRes = await fetch(`https://api.github.com/repos/${owner}/${repo}/pages/builds/latest`, { headers });
@@ -1587,7 +1825,6 @@
                         if (bErr.message.startsWith("GitHub Pages build failed")) throw bErr;
                     }
 
-                    // Probe the actual live GitHub Pages URL (cache-busted) after initial 8s propagation
                     if (elapsedSec >= 8 && (buildStatus === "built" || elapsedSec >= 20)) {
                         try {
                             const probeRes = await fetch(`${liveUrl}.html?t=${Date.now()}`, { cache: "no-store" });
@@ -1598,9 +1835,7 @@
                                     break;
                                 }
                             }
-                        } catch (_) {
-                            // Ignore transient CORS/CDN edge cache misses until ready
-                        }
+                        } catch (_) {}
                     }
 
                     await new Promise(r => setTimeout(r, 5000));
@@ -1610,7 +1845,6 @@
                     throw new Error(`Deployment timed out after 5 minutes, though ${nextFileName} was committed. Check ${liveUrl} shortly.`);
                 }
 
-                // --- COMPLETE: 100% Live ---
                 const totalSec = Math.floor((Date.now() - startTime) / 1000);
                 setPubProgress(100, `Live in ${totalSec}s!`, renderSteps(
                     { cls: 'done', icon: '<i class="fa-solid fa-circle-check"></i>', text: `Series aligned: ${nextWebKey} ↔ ${nextFileName}` },
@@ -1630,7 +1864,6 @@
                 `);
 
             } catch (err) {
-                // Rollback orphan Firebase entry if GitHub commit failed
                 let rollbackNote = "";
                 if (firebaseSavedKey) {
                     try {

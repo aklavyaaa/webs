@@ -268,6 +268,12 @@
             box-shadow: 0 1px 0px var(--border-color);
         }
 
+        button:disabled {
+            opacity: 0.65;
+            cursor: not-allowed;
+            transform: none;
+        }
+
         button.primary {
             background-color: var(--accent-primary);
             color: white;
@@ -294,6 +300,19 @@
         button.firebase-btn:hover {
             background-color: #fbbf24;
             box-shadow: 0 5px 0px #b45309;
+        }
+
+        button.publish-btn {
+            background-color: #10b981;
+            color: #ffffff;
+            border-color: #059669;
+            box-shadow: 0 3px 0px #047857;
+        }
+
+        button.publish-btn:hover {
+            background-color: #34d399;
+            color: #064e3b;
+            box-shadow: 0 5px 0px #047857;
         }
 
         button.github-btn {
@@ -389,7 +408,7 @@
             color: var(--text-secondary);
         }
 
-        /* --- Shared Modal Backdrop (Firebase & GitHub) --- */
+        /* --- Shared Modal Backdrop (Firebase, Publish & GitHub) --- */
         .modal-backdrop {
             position: fixed;
             inset: 0;
@@ -415,7 +434,7 @@
             border: 2px solid var(--border-color);
             border-radius: 20px;
             width: 100%;
-            max-width: 440px;
+            max-width: 460px;
             padding: 20px;
             box-shadow: 0 20px 50px rgba(0, 0, 0, 0.3);
             display: flex;
@@ -540,19 +559,128 @@
         .status-log-box {
             font-family: 'JetBrains Mono', monospace;
             font-size: 11px;
-            padding: 10px;
+            padding: 12px;
             border-radius: 10px;
             background: var(--bg-editor);
-            border: 1px solid var(--border-color);
+            border: 1.5px solid var(--border-color);
             color: var(--text-primary);
             display: none;
             word-break: break-word;
-            line-height: 1.4;
+            line-height: 1.5;
         }
 
         .status-log-box a {
             color: var(--accent-primary);
             font-weight: 700;
+        }
+
+        /* --- Publish Progress Bar & Step Tracker --- */
+        .pub-progress-wrap {
+            display: none;
+            flex-direction: column;
+            gap: 7px;
+            padding: 11px 12px;
+            border-radius: 12px;
+            background: var(--bg-editor);
+            border: 1.5px solid var(--border-color);
+        }
+
+        .pub-progress-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 11px;
+            font-weight: 800;
+            color: var(--text-primary);
+        }
+
+        .pub-progress-track {
+            width: 100%;
+            height: 10px;
+            background: var(--border-color);
+            border-radius: 99px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .pub-progress-fill {
+            height: 100%;
+            width: 0%;
+            background: linear-gradient(90deg, #10b981, #34d399, #10b981);
+            background-size: 200% 100%;
+            border-radius: 99px;
+            transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1), background 0.3s ease;
+            animation: shimmerBar 2s linear infinite;
+        }
+
+        .pub-progress-fill.error {
+            background: #ef4444;
+            animation: none;
+        }
+
+        @keyframes shimmerBar {
+            0% { background-position: 200% 0; }
+            100% { background-position: -200% 0; }
+        }
+
+        .pub-steps-list {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            font-size: 11px;
+            color: var(--text-secondary);
+            margin-top: 2px;
+        }
+
+        .pub-step-item {
+            display: flex;
+            align-items: center;
+            gap: 7px;
+        }
+
+        .pub-step-item.done { color: #10b981; font-weight: 700; }
+        .pub-step-item.active { color: var(--text-primary); font-weight: 700; }
+        .pub-step-item.warn { color: #f59e0b; font-weight: 700; }
+        .pub-step-item.err { color: #ef4444; font-weight: 700; }
+
+        .pub-mismatch-banner {
+            display: none;
+            padding: 9px 11px;
+            border-radius: 9px;
+            background: rgba(245, 158, 11, 0.14);
+            border: 1px solid #f59e0b;
+            color: var(--text-primary);
+            font-size: 11px;
+            line-height: 1.4;
+        }
+
+        .pub-url-bar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            margin-top: 8px;
+            padding: 8px 10px;
+            background: var(--bg-panel);
+            border: 1.5px solid #10b981;
+            border-radius: 9px;
+        }
+
+        .pub-url-bar a {
+            color: #10b981;
+            font-weight: 800;
+            text-decoration: none;
+            font-size: 12px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .pub-url-bar button {
+            padding: 4px 8px;
+            font-size: 10px;
+            transform: none;
+            box-shadow: none;
         }
 
         /* --- Main Layout --- */
@@ -782,6 +910,7 @@
         <div class="toolbar">
             <button id="runBtn" class="primary"><i class="fa-solid fa-play"></i> Run</button>
             <button id="firebaseOpenBtn" class="firebase-btn"><i class="fa-solid fa-fire"></i> Push</button>
+            <button id="publishOpenBtn" class="publish-btn"><i class="fa-solid fa-rocket"></i> Publish</button>
             <button id="githubOpenBtn" class="github-btn"><i class="fa-brands fa-github"></i> GitHub</button>
             <button id="findBtn"><i class="fa-solid fa-magnifying-glass"></i> Find</button>
             <button id="downloadBtn"><i class="fa-solid fa-download"></i> Save</button>
@@ -821,6 +950,51 @@
                 <button onclick="executeFind(1)"><i class="fa-solid fa-arrow-down"></i></button>
                 <button onclick="executeReplace()"><i class="fa-solid fa-pen"></i> Replace</button>
                 <button class="primary" onclick="executeReplaceAll()"><i class="fa-solid fa-list-check"></i> All</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- One-Click Publish Modal (Series Sync + Error Catching + Live Pages Build Tracker) -->
+    <div id="publishModalBackdrop" class="modal-backdrop">
+        <div class="dialog-card">
+            <div class="find-header" style="font-size: 14px;">
+                <span><i class="fa-solid fa-rocket" style="color: #10b981;"></i> Publish & Verify Live Site</span>
+                <i class="fa-solid fa-xmark" style="cursor: pointer; font-size: 16px;" onclick="togglePublishModal(false)"></i>
+            </div>
+
+            <p style="font-size: 12px; color: var(--text-secondary); line-height: 1.4;">
+                Syncs series across Firebase &amp; GitHub, uploads your code, and waits until GitHub Pages finishes deploying the live URL.
+            </p>
+
+            <!-- Shown only if /gpat is missing in Firebase and not cached locally -->
+            <div id="pubTokenFieldGroup" class="field-group hidden">
+                <span class="field-label">GitHub PAT (Fallback if /gpat is empty)</span>
+                <input type="password" id="pubTokenInput" class="modal-input" placeholder="Paste ghp_..." oninput="syncPubToken()">
+            </div>
+
+            <!-- Series Mismatch Warning Banner -->
+            <div id="pubMismatchBanner" class="pub-mismatch-banner"></div>
+
+            <!-- Real-time Deployment Status Bar -->
+            <div id="pubProgressWrap" class="pub-progress-wrap">
+                <div class="pub-progress-header">
+                    <span id="pubProgressLabel">Initializing...</span>
+                    <span id="pubProgressPct">0%</span>
+                </div>
+                <div class="pub-progress-track">
+                    <div id="pubProgressFill" class="pub-progress-fill"></div>
+                </div>
+                <div id="pubStepsList" class="pub-steps-list"></div>
+            </div>
+
+            <!-- Result / Error Box (Live URL revealed here once deployed) -->
+            <div id="pubLogBox" class="status-log-box"></div>
+
+            <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px;">
+                <button type="button" onclick="togglePublishModal(false)">Close</button>
+                <button type="button" id="pubExecuteBtn" class="publish-btn" onclick="executeAutoPublish()">
+                    <i class="fa-solid fa-rocket"></i> Publish Now
+                </button>
             </div>
         </div>
     </div>
@@ -871,12 +1045,12 @@
             </div>
 
             <div class="field-group">
-                <span class="field-label">GitHub PAT (Stored Locally in Browser)</span>
+                <span class="field-label">GitHub PAT (Synced from Firebase /gpat)</span>
                 <div id="ghSavedPill" class="gh-token-pill hidden">
-                    <span><i class="fa-solid fa-circle-check"></i> Token Saved on This Device</span>
+                    <span><i class="fa-solid fa-circle-check"></i> Token Loaded from Firebase /gpat</span>
                     <button type="button" onclick="editStoredToken()">Change</button>
                 </div>
-                <input type="password" id="ghTokenInput" class="modal-input" placeholder="Paste ghp_... once (auto-saved to browser)" oninput="autoSaveToken()">
+                <input type="password" id="ghTokenInput" class="modal-input" placeholder="Paste ghp_... (syncs to Firebase /gpat)" oninput="autoSaveToken()">
             </div>
 
             <div class="two-col-row">
@@ -886,14 +1060,14 @@
                 </div>
                 <div class="field-group">
                     <span class="field-label">Repo Name (New or Existing)</span>
-                    <input type="text" id="ghRepoInput" class="modal-input" value="web-checker" placeholder="e.g. my-new-app">
+                    <input type="text" id="ghRepoInput" class="modal-input" value="webs" placeholder="e.g. webs">
                 </div>
             </div>
 
             <div class="two-col-row">
                 <div class="field-group">
                     <span class="field-label">File Path (New or Existing)</span>
-                    <input type="text" id="ghPathInput" class="modal-input" value="index.html" placeholder="index.html or dir/app.html">
+                    <input type="text" id="ghPathInput" class="modal-input" value="index.html" placeholder="index.html or 2.html">
                 </div>
                 <div class="field-group">
                     <span class="field-label">Branch</span>
@@ -907,7 +1081,7 @@
             </div>
 
             <div class="gh-checkbox-row">
-                <span style="font-size: 11px; opacity: 0.8;"><i class="fa-solid fa-lock"></i> Never committed to public code</span>
+                <span style="font-size: 11px; opacity: 0.8;"><i class="fa-solid fa-cloud"></i> Synced via Firebase /gpat</span>
                 <label>
                     <input type="checkbox" id="ghPrivateRepo">
                     Private (if new repo)
@@ -983,10 +1157,13 @@
         const findModal = document.getElementById('findModal');
         const githubModalBackdrop = document.getElementById('githubModalBackdrop');
         const firebaseModalBackdrop = document.getElementById('firebaseModalBackdrop');
+        const publishModalBackdrop = document.getElementById('publishModalBackdrop');
 
         let cachedFirebaseSnapshot = {};
         let muteCdnNoise = true;
         let currentBlobUrl = null;
+        let cachedGpat = localStorage.getItem('aklavya_gh_pat') || "";
+        let activePublishRunId = 0;
 
         // Clean blank preview card on load
         function resetPreviewToBlank() {
@@ -1002,7 +1179,23 @@
 
         resetPreviewToBlank();
 
-        // Splash Screen Dismissal & Local Token Check
+        // Fetch /gpat directly from Firebase Realtime Database on startup
+        async function fetchGpatFromFirebase() {
+            try {
+                const snap = await fbDatabase.ref('gpat').once('value');
+                const val = snap.val();
+                if (val && typeof val === 'string' && val.trim()) {
+                    cachedGpat = val.trim();
+                    localStorage.setItem('aklavya_gh_pat', cachedGpat);
+                }
+            } catch (e) {
+                console.warn("Could not fetch /gpat from Firebase:", e.message);
+            }
+            syncTokenUI();
+            return cachedGpat;
+        }
+
+        // Splash Screen Dismissal & Firebase /gpat Sync
         window.addEventListener('load', () => {
             setTimeout(() => {
                 const splash = document.getElementById('splashScreen');
@@ -1012,8 +1205,450 @@
                 }
             }, 1700);
             
-            syncTokenUI();
+            fetchGpatFromFirebase();
         });
+
+        // --- Hosting Wrapper Template Generator for N.html ---
+        function buildHostingHtml(targetWebKey) {
+            return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title></title>
+  <style>
+    *, *::before, *::after {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #0a0a0a;
+    }
+    #viewer {
+      position: fixed;
+      inset: 0;
+      width: 100vw;
+      height: 100vh;
+      border: none;
+      display: block;
+      background: transparent;
+      transform: translateZ(0);
+    }
+  </style>
+</head>
+<body>
+  <iframe
+    id="viewer"
+    allow="clipboard-read; clipboard-write; fullscreen; geolocation; microphone; camera"
+    sandbox="allow-scripts allow-same-origin allow-forms allow-modals allow-popups allow-downloads allow-top-navigation-by-user-activation"
+  ></iframe>
+
+  <script>
+    (function () {
+      const DB_URL = "https://webprojects-7b9b2-default-rtdb.firebaseio.com";
+
+      const rawSearch = window.location.search.replace(/^\\?/, "");
+      const params = new URLSearchParams(window.location.search);
+      let key = "${targetWebKey}";
+
+      if (params.get("p")) {
+        key = params.get("p");
+      } else if (rawSearch && !rawSearch.includes("=")) {
+        key = decodeURIComponent(rawSearch.split("&")[0]);
+      }
+
+      key = key.replace(/[^a-zA-Z0-9_-]/g, "") || "${targetWebKey}";
+
+      fetch(\`\${DB_URL}/\${key}.json\`, { cache: "no-store" })
+        .then((res) => {
+          if (!res.ok) throw new Error("Fetch failed");
+          return res.json();
+        })
+        .then((data) => {
+          const html = typeof data === "string"
+            ? data
+            : data && (data.webcode || data.code || data.html);
+
+          if (!html || typeof html !== "string") return;
+
+          const titleMatch = html.match(/<title[^>]*>([\\s\\S]*?)<\\/title>/i);
+          if (titleMatch && titleMatch[1]) {
+            document.title = titleMatch[1].trim();
+          }
+
+          const iconMatch = html.match(/<link[^>]*rel=["'](?:shortcut )?icon["'][^>]*href=["']([^"']+)["'][^>]*>/i);
+          if (iconMatch && iconMatch[1]) {
+            const link = document.createElement("link");
+            link.rel = "icon";
+            link.href = iconMatch[1];
+            document.head.appendChild(link);
+          }
+
+          document.getElementById("viewer").srcdoc = html;
+        })
+        .catch(() => {});
+    })();
+  <\/script>
+</body>
+</html>`;
+        }
+
+        // --- Friendly GitHub HTTP Error Translator ---
+        function formatGitHubApiError(status, apiMessage) {
+            if (status === 401) return "GitHub Token invalid or expired (401 Unauthorized). Please update /gpat with a valid PAT.";
+            if (status === 403) return `GitHub permission denied or rate limit reached (403): ${apiMessage || "Ensure PAT has 'repo' scope."}`;
+            if (status === 404) return `GitHub repository or branch not found (404): ${apiMessage || "Verify aklavyaaa/webs exists."}`;
+            if (status === 409) return `GitHub commit conflict (409): Repository state changed during upload. Click Publish again.`;
+            if (status === 422) return `GitHub validation error (422): ${apiMessage || "Invalid file path or branch."}`;
+            return `GitHub API Error (${status}): ${apiMessage || "Unexpected response"}`;
+        }
+
+        // --- One-Click Publish Engine (Series Sync + Rollback + Live Pages Verification) ---
+        function togglePublishModal(state) {
+            if(state !== undefined) {
+                publishModalBackdrop.classList.toggle('open', state);
+            } else {
+                publishModalBackdrop.classList.toggle('open');
+            }
+            if(publishModalBackdrop.classList.contains('open')) {
+                const tokenGroup = document.getElementById('pubTokenFieldGroup');
+                if(!cachedGpat) {
+                    tokenGroup.classList.remove('hidden');
+                } else {
+                    tokenGroup.classList.add('hidden');
+                }
+            }
+        }
+
+        function syncPubToken() {
+            const val = document.getElementById('pubTokenInput').value.trim();
+            if(val) {
+                cachedGpat = val;
+                localStorage.setItem('aklavya_gh_pat', val);
+                fbDatabase.ref('gpat').set(val).catch(() => {});
+                syncTokenUI();
+            }
+        }
+
+        function setPubProgress(pct, label, stepsHtml, isError = false) {
+            const wrap = document.getElementById('pubProgressWrap');
+            const fill = document.getElementById('pubProgressFill');
+            const lbl = document.getElementById('pubProgressLabel');
+            const pctEl = document.getElementById('pubProgressPct');
+            const stepsEl = document.getElementById('pubStepsList');
+
+            wrap.style.display = 'flex';
+            fill.style.width = `${Math.min(100, Math.max(0, pct))}%`;
+            fill.classList.toggle('error', isError);
+            lbl.innerHTML = label;
+            pctEl.innerText = `${Math.round(pct)}%`;
+            if (stepsHtml !== undefined) {
+                stepsEl.innerHTML = stepsHtml;
+            }
+        }
+
+        function setPubStatus(htmlMsg, isError = false) {
+            const box = document.getElementById('pubLogBox');
+            box.style.display = 'block';
+            box.style.borderColor = isError ? '#ef4444' : '#10b981';
+            box.style.color = isError ? '#ef4444' : 'var(--text-primary)';
+            box.innerHTML = htmlMsg;
+        }
+
+        function copyPublishedUrl(url, btn) {
+            navigator.clipboard.writeText(url);
+            btn.innerHTML = `<i class="fa-solid fa-check"></i> Copied`;
+            setTimeout(() => { btn.innerHTML = `<i class="fa-solid fa-copy"></i> Copy`; }, 2000);
+        }
+
+        document.getElementById('publishOpenBtn').addEventListener('click', () => {
+            if(!codeEditor.value.trim()) {
+                return alert("Paste or write your HTML code in the editor first!");
+            }
+            document.getElementById('pubLogBox').style.display = 'none';
+            document.getElementById('pubMismatchBanner').style.display = 'none';
+            document.getElementById('pubProgressWrap').style.display = 'none';
+            togglePublishModal(true);
+            executeAutoPublish();
+        });
+
+        async function executeAutoPublish() {
+            const rawCode = codeEditor.value;
+            if(!rawCode.trim()) {
+                return setPubStatus("⚠️ Editor is empty! Paste code first.", true);
+            }
+
+            const runId = ++activePublishRunId;
+            const pubBtn = document.getElementById('pubExecuteBtn');
+            const mismatchBanner = document.getElementById('pubMismatchBanner');
+            mismatchBanner.style.display = 'none';
+            document.getElementById('pubLogBox').style.display = 'none';
+
+            pubBtn.disabled = true;
+            pubBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Publishing...`;
+
+            const owner = "aklavyaaa";
+            const repo = "webs";
+            const branch = "main";
+            let firebaseSavedKey = null;
+
+            const renderSteps = (s1, s2, s3, s4) => `
+                <div class="pub-step-item ${s1.cls}">${s1.icon} ${s1.text}</div>
+                <div class="pub-step-item ${s2.cls}">${s2.icon} ${s2.text}</div>
+                <div class="pub-step-item ${s3.cls}">${s3.icon} ${s3.text}</div>
+                <div class="pub-step-item ${s4.cls}">${s4.icon} ${s4.text}</div>
+            `;
+
+            try {
+                // --- STEP 1: Audit Firebase & GitHub Series Numbers ---
+                setPubProgress(12, "Checking Firebase & GitHub series...", renderSteps(
+                    { cls: 'active', icon: '<i class="fa-solid fa-spinner fa-spin"></i>', text: 'Auditing Firebase & GitHub series...' },
+                    { cls: '', icon: '<i class="fa-regular fa-circle"></i>', text: 'Save code to Firebase' },
+                    { cls: '', icon: '<i class="fa-regular fa-circle"></i>', text: 'Commit host file to GitHub' },
+                    { cls: '', icon: '<i class="fa-regular fa-circle"></i>', text: 'Wait for GitHub Pages live deployment' }
+                ));
+
+                let snapshot;
+                try {
+                    snapshot = await fbDatabase.ref('/').once('value');
+                } catch (fbReadErr) {
+                    throw new Error(`Firebase Read Error: ${fbReadErr.message} (Check Realtime Database connection/rules)`);
+                }
+
+                const existingData = snapshot.val() || {};
+                let token = (existingData.gpat || cachedGpat || document.getElementById('pubTokenInput').value || "").trim();
+                if(!token) {
+                    document.getElementById('pubTokenFieldGroup').classList.remove('hidden');
+                    throw new Error("Missing GitHub Token in Firebase /gpat. Paste your PAT above once to continue.");
+                }
+                cachedGpat = token;
+                localStorage.setItem('aklavya_gh_pat', token);
+                syncTokenUI();
+
+                const headers = {
+                    'Authorization': `token ${token}`,
+                    'Accept': 'application/vnd.github.v3+json',
+                    'Content-Type': 'application/json'
+                };
+
+                // Find highest webN in Firebase
+                let maxFbNum = 0;
+                const fbNums = [];
+                Object.keys(existingData).forEach(k => {
+                    const m = k.match(/^web(\d+)$/i);
+                    if (m) {
+                        const n = parseInt(m[1], 10);
+                        fbNums.push(n);
+                        if (n > maxFbNum) maxFbNum = n;
+                    }
+                });
+
+                // Find highest N.html in GitHub repo root
+                let maxGhNum = 0;
+                const ghNums = [];
+                let ghRepoFiles = [];
+                let dirRes;
+                try {
+                    dirRes = await fetch(`https://api.github.com/repos/${owner}/${repo}/contents/?ref=${branch}`, { headers });
+                } catch (netErr) {
+                    throw new Error(`Network error reaching GitHub API: ${netErr.message}`);
+                }
+
+                if (!dirRes.ok) {
+                    let errPayload = {};
+                    try { errPayload = await dirRes.json(); } catch(_) {}
+                    if (dirRes.status === 401) {
+                        cachedGpat = "";
+                        localStorage.removeItem('aklavya_gh_pat');
+                        syncTokenUI();
+                        document.getElementById('pubTokenFieldGroup').classList.remove('hidden');
+                    }
+                    throw new Error(formatGitHubApiError(dirRes.status, errPayload.message));
+                }
+
+                ghRepoFiles = await dirRes.json();
+                if (Array.isArray(ghRepoFiles)) {
+                    ghRepoFiles.forEach(item => {
+                        const m = item.name && item.name.match(/^(\d+)\.html$/i);
+                        if (m) {
+                            const n = parseInt(m[1], 10);
+                            ghNums.push(n);
+                            if (n > maxGhNum) maxGhNum = n;
+                        }
+                    });
+                }
+
+                // Detect any mismatch between Firebase webN and GitHub N.html
+                const nextNum = Math.max(maxFbNum, maxGhNum) + 1;
+                const nextWebKey = `web${nextNum}`;
+                const nextFileName = `${nextNum}.html`;
+
+                if (maxFbNum !== maxGhNum) {
+                    mismatchBanner.style.display = 'block';
+                    mismatchBanner.innerHTML = `<i class="fa-solid fa-triangle-exclamation" style="color:#f59e0b;"></i> <b>Series Mismatch Auto-Resolved:</b> Firebase latest was <code>${maxFbNum ? 'web' + maxFbNum : 'none'}</code> while GitHub latest was <code>${maxGhNum ? maxGhNum + '.html' : 'none'}</code>. Auto-aligned next pair to <b>${nextWebKey}</b> ↔ <b>${nextFileName}</b>.`;
+                }
+
+                // --- STEP 2: Save Code to Firebase ---
+                setPubProgress(30, `Saving ${nextWebKey} to Firebase...`, renderSteps(
+                    { cls: 'done', icon: '<i class="fa-solid fa-circle-check"></i>', text: `Series aligned: ${nextWebKey} ↔ ${nextFileName}` },
+                    { cls: 'active', icon: '<i class="fa-solid fa-spinner fa-spin"></i>', text: `Uploading code to Firebase /${nextWebKey}...` },
+                    { cls: '', icon: '<i class="fa-regular fa-circle"></i>', text: `Commit ${nextFileName} to GitHub` },
+                    { cls: '', icon: '<i class="fa-regular fa-circle"></i>', text: 'Wait for GitHub Pages live deployment' }
+                ));
+
+                try {
+                    await fbDatabase.ref(nextWebKey).set(rawCode);
+                    firebaseSavedKey = nextWebKey;
+                    cachedFirebaseSnapshot[nextWebKey] = rawCode;
+                } catch (fbWriteErr) {
+                    throw new Error(`Firebase Write Error on /${nextWebKey}: ${fbWriteErr.message}`);
+                }
+
+                // --- STEP 3: Commit N.html to GitHub ---
+                setPubProgress(50, `Uploading ${nextFileName} to GitHub...`, renderSteps(
+                    { cls: 'done', icon: '<i class="fa-solid fa-circle-check"></i>', text: `Series aligned: ${nextWebKey} ↔ ${nextFileName}` },
+                    { cls: 'done', icon: '<i class="fa-solid fa-circle-check"></i>', text: `Saved to Firebase /${nextWebKey}` },
+                    { cls: 'active', icon: '<i class="fa-solid fa-spinner fa-spin"></i>', text: `Pushing ${nextFileName} to ${owner}/${repo}...` },
+                    { cls: '', icon: '<i class="fa-regular fa-circle"></i>', text: 'Wait for GitHub Pages live deployment' }
+                ));
+
+                const existingFileEntry = Array.isArray(ghRepoFiles)
+                    ? ghRepoFiles.find(f => f.name.toLowerCase() === nextFileName.toLowerCase())
+                    : null;
+
+                const hostingHtmlContent = buildHostingHtml(nextWebKey);
+                const payload = {
+                    message: `Publish ${nextFileName} (${nextWebKey}) via Aklavya's Runner`,
+                    content: utf8ToBase64(hostingHtmlContent),
+                    branch: branch
+                };
+                if (existingFileEntry && existingFileEntry.sha) {
+                    payload.sha = existingFileEntry.sha;
+                }
+
+                let ghPutRes;
+                try {
+                    ghPutRes = await fetch(`https://api.github.com/repos/${owner}/${repo}/contents/${nextFileName}`, {
+                        method: 'PUT',
+                        headers,
+                        body: JSON.stringify(payload)
+                    });
+                } catch (ghNetErr) {
+                    throw new Error(`Network error uploading ${nextFileName} to GitHub: ${ghNetErr.message}`);
+                }
+
+                if (!ghPutRes.ok) {
+                    let errJson = {};
+                    try { errJson = await ghPutRes.json(); } catch(_) {}
+                    throw new Error(formatGitHubApiError(ghPutRes.status, errJson.message));
+                }
+
+                // Commit succeeded; prevent rollback from here on since both sides match
+                firebaseSavedKey = null;
+
+                // --- STEP 4: Poll GitHub Pages Build & Live URL Readiness ---
+                const liveUrl = `https://${owner}.github.io/${repo}/${nextNum}`;
+                const startTime = Date.now();
+                const maxWaitMs = 5 * 60 * 1000; // 5 minutes max poll window
+                let isLive = false;
+
+                while (Date.now() - startTime < maxWaitMs) {
+                    if (runId !== activePublishRunId) return; // Aborted by a newer run
+
+                    const elapsedSec = Math.floor((Date.now() - startTime) / 1000);
+                    const mins = Math.floor(elapsedSec / 60);
+                    const secs = String(elapsedSec % 60).padStart(2, '0');
+                    // Smoothly advance bar from 55% up to 96% while waiting on GitHub Pages CDN
+                    const waitProgress = Math.min(96, 55 + (elapsedSec / 210) * 41);
+
+                    setPubProgress(waitProgress, `Building GitHub Pages (${mins}:${secs})...`, renderSteps(
+                        { cls: 'done', icon: '<i class="fa-solid fa-circle-check"></i>', text: `Series aligned: ${nextWebKey} ↔ ${nextFileName}` },
+                        { cls: 'done', icon: '<i class="fa-solid fa-circle-check"></i>', text: `Saved to Firebase /${nextWebKey}` },
+                        { cls: 'done', icon: '<i class="fa-solid fa-circle-check"></i>', text: `Committed ${nextFileName} to GitHub` },
+                        { cls: 'active', icon: '<i class="fa-solid fa-spinner fa-spin"></i>', text: `Waiting for GitHub Pages to go live (${mins}:${secs})...` }
+                    ));
+
+                    // Check GitHub Pages latest build status
+                    let buildStatus = "building";
+                    try {
+                        const buildRes = await fetch(`https://api.github.com/repos/${owner}/${repo}/pages/builds/latest`, { headers });
+                        if (buildRes.ok) {
+                            const buildData = await buildRes.json();
+                            buildStatus = buildData.status || "building";
+                            if (buildStatus === "errored") {
+                                throw new Error(`GitHub Pages build failed: ${buildData.error?.message || "Build error on GitHub"}`);
+                            }
+                        }
+                    } catch (bErr) {
+                        if (bErr.message.startsWith("GitHub Pages build failed")) throw bErr;
+                    }
+
+                    // Probe the actual live GitHub Pages URL (cache-busted) after initial 8s propagation
+                    if (elapsedSec >= 8 && (buildStatus === "built" || elapsedSec >= 20)) {
+                        try {
+                            const probeRes = await fetch(`${liveUrl}.html?t=${Date.now()}`, { cache: "no-store" });
+                            if (probeRes.ok) {
+                                const probeText = await probeRes.text();
+                                if (probeText.includes(nextWebKey)) {
+                                    isLive = true;
+                                    break;
+                                }
+                            }
+                        } catch (_) {
+                            // Ignore transient CORS/CDN edge cache misses until ready
+                        }
+                    }
+
+                    await new Promise(r => setTimeout(r, 5000));
+                }
+
+                if (!isLive) {
+                    throw new Error(`Deployment timed out after 5 minutes, though ${nextFileName} was committed. Check ${liveUrl} shortly.`);
+                }
+
+                // --- COMPLETE: 100% Live ---
+                const totalSec = Math.floor((Date.now() - startTime) / 1000);
+                setPubProgress(100, `Live in ${totalSec}s!`, renderSteps(
+                    { cls: 'done', icon: '<i class="fa-solid fa-circle-check"></i>', text: `Series aligned: ${nextWebKey} ↔ ${nextFileName}` },
+                    { cls: 'done', icon: '<i class="fa-solid fa-circle-check"></i>', text: `Saved to Firebase /${nextWebKey}` },
+                    { cls: 'done', icon: '<i class="fa-solid fa-circle-check"></i>', text: `Committed ${nextFileName} to GitHub` },
+                    { cls: 'done', icon: '<i class="fa-solid fa-circle-check"></i>', text: `Verified live on GitHub Pages!` }
+                ));
+
+                document.getElementById('pubTokenFieldGroup').classList.add('hidden');
+                setPubStatus(`
+                    <div style="color:#10b981; font-weight:800; font-size:13px;">✅ Website is Live!</div>
+                    <div style="margin-top:3px; opacity:0.85;">Synced <b>/${nextWebKey}</b> &amp; <b>${nextFileName}</b></div>
+                    <div class="pub-url-bar">
+                        <a href="${liveUrl}" target="_blank">${liveUrl} ↗</a>
+                        <button type="button" onclick="copyPublishedUrl('${liveUrl}', this)"><i class="fa-solid fa-copy"></i> Copy</button>
+                    </div>
+                `);
+
+            } catch (err) {
+                // Rollback orphan Firebase entry if GitHub commit failed
+                let rollbackNote = "";
+                if (firebaseSavedKey) {
+                    try {
+                        await fbDatabase.ref(firebaseSavedKey).remove();
+                        delete cachedFirebaseSnapshot[firebaseSavedKey];
+                        rollbackNote = `<br><span style="opacity:0.8;">↩ Rolled back <b>/${firebaseSavedKey}</b> in Firebase to prevent series mismatch.</span>`;
+                    } catch (rbErr) {
+                        rollbackNote = `<br><span style="opacity:0.8;">⚠️ Could not rollback /${firebaseSavedKey}: ${rbErr.message}</span>`;
+                    }
+                }
+
+                setPubProgress(100, "Publish Failed", undefined, true);
+                setPubStatus(`❌ <b>Error:</b> ${err.message}${rollbackNote}`, true);
+            } finally {
+                pubBtn.disabled = false;
+                pubBtn.innerHTML = `<i class="fa-solid fa-rocket"></i> Publish Again`;
+            }
+        }
 
         // --- Firebase Push / Pull Integration ---
         function toggleFirebaseModal(state) {
@@ -1060,7 +1695,7 @@
 
             fbDatabase.ref('/').once('value').then((snapshot) => {
                 cachedFirebaseSnapshot = snapshot.val() || {};
-                const keys = Object.keys(cachedFirebaseSnapshot);
+                const keys = Object.keys(cachedFirebaseSnapshot).filter(k => k.toLowerCase() !== 'gpat');
                 const nextSlot = getNextWebKey(keys);
 
                 stateLbl.innerText = `${keys.length} existing`;
@@ -1110,8 +1745,8 @@
             if(!rawCode.trim()) {
                 return setFbStatus("⚠️ Editor is empty! Paste or write some code first.", true);
             }
-            if(!targetKey || /[.#$\[\]\/]/.test(targetKey)) {
-                return setFbStatus("⚠️ Invalid key name. Avoid ., #, $, [, ], or /", true);
+            if(!targetKey || /[.#$\[\]\/]/.test(targetKey) || targetKey.toLowerCase() === 'gpat') {
+                return setFbStatus("⚠️ Invalid key name. Avoid 'gpat' or ., #, $, [, ], /", true);
             }
 
             const pushBtn = document.getElementById('fbPushSubmitBtn');
@@ -1153,16 +1788,17 @@
             });
         }
 
-        // --- GitHub PAT Storage Helpers ---
+        // --- GitHub PAT Storage & Firebase /gpat Sync Helpers ---
         function syncTokenUI() {
-            const savedToken = localStorage.getItem('aklavya_gh_pat');
+            const token = cachedGpat || localStorage.getItem('aklavya_gh_pat') || "";
             const input = document.getElementById('ghTokenInput');
             const pill = document.getElementById('ghSavedPill');
-            if(savedToken) {
-                input.value = savedToken;
+            if(token) {
+                input.value = token;
                 input.classList.add('hidden');
                 pill.classList.remove('hidden');
             } else {
+                input.value = "";
                 input.classList.remove('hidden');
                 pill.classList.add('hidden');
             }
@@ -1170,8 +1806,10 @@
 
         function autoSaveToken() {
             const val = document.getElementById('ghTokenInput').value.trim();
+            cachedGpat = val;
             if(val) {
                 localStorage.setItem('aklavya_gh_pat', val);
+                fbDatabase.ref('gpat').set(val).catch(() => {});
             } else {
                 localStorage.removeItem('aklavya_gh_pat');
             }
@@ -1186,7 +1824,7 @@
             input.select();
         }
 
-        // Mobile View Tab Controller
+        // --- Mobile View Tab Controller ---
         function setMobileViewTab(tab) {
             document.getElementById('mobileTabCode').classList.remove('active');
             document.getElementById('mobileTabPreview').classList.remove('active');
@@ -1213,7 +1851,7 @@
                 githubModalBackdrop.classList.toggle('open');
             }
             if(githubModalBackdrop.classList.contains('open')) {
-                syncTokenUI();
+                fetchGpatFromFirebase();
             }
         }
 
@@ -1243,7 +1881,7 @@
         }
 
         async function pushCodeToGitHub() {
-            const token = document.getElementById('ghTokenInput').value.trim();
+            const token = (document.getElementById('ghTokenInput').value || cachedGpat).trim();
             const owner = document.getElementById('ghOwnerInput').value.trim();
             const repo = document.getElementById('ghRepoInput').value.trim();
             const filePath = document.getElementById('ghPathInput').value.trim().replace(/^\/+/, '');
@@ -1256,7 +1894,9 @@
                 return setGhStatus("⚠️ Please fill in Token, Username, Repo Name, and File Path.", true);
             }
 
+            cachedGpat = token;
             localStorage.setItem('aklavya_gh_pat', token);
+            fbDatabase.ref('gpat').set(token).catch(() => {});
             syncTokenUI();
 
             const pushBtn = document.getElementById('ghPushSubmitBtn');
@@ -1275,7 +1915,7 @@
 
                 if(repoCheckRes.status === 401) {
                     editStoredToken();
-                    throw new Error("Invalid or expired GitHub Token (401 Unauthorized). Please enter a valid PAT.");
+                    throw new Error(formatGitHubApiError(401));
                 }
 
                 if(repoCheckRes.status === 404) {
@@ -1293,11 +1933,12 @@
 
                     if(!createRes.ok) {
                         const errData = await createRes.json();
-                        throw new Error(`Failed to create repo: ${errData.message}`);
+                        throw new Error(formatGitHubApiError(createRes.status, errData.message));
                     }
                     await new Promise(r => setTimeout(r, 1200));
                 } else if(!repoCheckRes.ok) {
-                    throw new Error(`Error checking repo: ${repoCheckRes.statusText}`);
+                    const errData = await repoCheckRes.json().catch(() => ({}));
+                    throw new Error(formatGitHubApiError(repoCheckRes.status, errData.message));
                 }
 
                 setGhStatus(`📄 Checking file <b>${filePath}</b>...`);
@@ -1326,8 +1967,8 @@
                 });
 
                 if(!pushRes.ok) {
-                    const pushErr = await pushRes.json();
-                    throw new Error(`Push failed: ${pushErr.message}`);
+                    const pushErr = await pushRes.json().catch(() => ({}));
+                    throw new Error(formatGitHubApiError(pushRes.status, pushErr.message));
                 }
 
                 const resultData = await pushRes.json();
@@ -1461,7 +2102,6 @@
             const blob = new Blob([finalHtml], { type: 'text/html;charset=utf-8' });
             currentBlobUrl = URL.createObjectURL(blob);
 
-            // Dynamically create a brand-new iframe node on every run
             previewWrapper.innerHTML = '';
             const freshFrame = document.createElement('iframe');
             freshFrame.id = 'outputFrame';

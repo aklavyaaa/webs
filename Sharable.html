@@ -5,50 +5,89 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title></title>
   <style>
-    html, body {
+    *, *::before, *::after {
       margin: 0;
       padding: 0;
+      box-sizing: border-box;
+    }
+    html, body {
       width: 100%;
       height: 100%;
+      overflow: hidden;
       background: #0a0a0a;
+    }
+    #viewer {
+      position: fixed;
+      inset: 0;
+      width: 100vw;
+      height: 100vh;
+      border: none;
+      display: block;
+      background: transparent;
+      transform: translateZ(0);
     }
   </style>
 </head>
 <body>
-  <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js";
-    import { getDatabase, ref, get } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-database.js";
+  <iframe
+    id="viewer"
+    allow="clipboard-read; clipboard-write; fullscreen; geolocation; microphone; camera"
+    sandbox="allow-scripts allow-same-origin allow-forms allow-modals allow-popups allow-downloads allow-top-navigation-by-user-activation"
+  ></iframe>
 
-    const firebaseConfig = {
-      apiKey: "AIzaSyBI9HYSZShgwMLD0IGtFFk-QACxSkZ9DXM",
-      authDomain: "webprojects-7b9b2.firebaseapp.com",
-      databaseURL: "https://webprojects-7b9b2-default-rtdb.firebaseio.com",
-      projectId: "webprojects-7b9b2",
-      storageBucket: "webprojects-7b9b2.firebasestorage.app",
-      messagingSenderId: "345992812956",
-      appId: "1:345992812956:web:3e99f5920fe99195ae9059",
-      measurementId: "G-6W5DMRZS6L"
-    };
+  <script>
+    (function () {
+      const DB_URL = "https://webprojects-7b9b2-default-rtdb.firebaseio.com";
 
-    const app = initializeApp(firebaseConfig);
-    const db = getDatabase(app);
+      // Supports:
+      // 1. yoursite.github.io/repo/         -> fetches "web1"
+      // 2. yoursite.github.io/repo/?web2    -> fetches "web2"
+      // 3. yoursite.github.io/repo/?p=web2  -> fetches "web2"
+      const rawSearch = window.location.search.replace(/^\?/, "");
+      const params = new URLSearchParams(window.location.search);
+      let key = "web1";
 
-    // Defaults to 'web1', or loads another node if you visit yoursite.com/?p=web2
-    const params = new URLSearchParams(window.location.search);
-    const nodeKey = params.get("p") || "web1";
+      if (params.get("p")) {
+        key = params.get("p");
+      } else if (rawSearch && !rawSearch.includes("=")) {
+        key = decodeURIComponent(rawSearch.split("&")[0]);
+      }
 
-    get(ref(db, nodeKey))
-      .then((snapshot) => {
-        if (snapshot.exists()) {
-          const htmlCode = snapshot.val();
-          document.open();
-          document.write(htmlCode);
-          document.close();
-        }
-      })
-      .catch((error) => {
-        console.error(error);
-      });
+      // Sanitize key to valid Firebase path segment
+      key = key.replace(/[^a-zA-Z0-9_-]/g, "") || "web1";
+
+      fetch(`${DB_URL}/${key}.json`, { cache: "no-store" })
+        .then((res) => {
+          if (!res.ok) throw new Error("Fetch failed");
+          return res.json();
+        })
+        .then((data) => {
+          // Supports both direct string value (web1: "<html>...") and object (web1: { webcode: "<html>..." })
+          const html = typeof data === "string"
+            ? data
+            : data && (data.webcode || data.code || data.html);
+
+          if (!html || typeof html !== "string") return;
+
+          // Sync child <title> and favicon to the host browser tab
+          const titleMatch = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
+          if (titleMatch && titleMatch[1]) {
+            document.title = titleMatch[1].trim();
+          }
+
+          const iconMatch = html.match(/<link[^>]*rel=["'](?:shortcut )?icon["'][^>]*href=["']([^"']+)["'][^>]*>/i);
+          if (iconMatch && iconMatch[1]) {
+            const link = document.createElement("link");
+            link.rel = "icon";
+            link.href = iconMatch[1];
+            document.head.appendChild(link);
+          }
+
+          // Render full child document inside isolated hardware-accelerated iframe
+          document.getElementById("viewer").srcdoc = html;
+        })
+        .catch(() => {});
+    })();
   </script>
 </body>
 </html>

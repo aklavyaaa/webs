@@ -2,92 +2,1761 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title></title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Sharable</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <!-- Firebase SDKs -->
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+  <!-- CryptoJS for Cloudinary SHA-1 signing -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
+
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#eef2ff',
+              100: '#e0e7ff',
+              500: '#6366f1',
+              600: '#4f46e5',
+              700: '#4338ca',
+            }
+          }
+        }
+      }
+    }
+  </script>
   <style>
-    *, *::before, *::after {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
-    }
     html, body {
-      width: 100%;
-      height: 100%;
-      overflow: hidden;
-      background: #0a0a0a;
+      overscroll-behavior-y: none;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+      -webkit-user-select: none;
     }
-    #viewer {
-      position: fixed;
-      inset: 0;
-      width: 100vw;
-      height: 100vh;
-      border: none;
-      display: block;
-      background: transparent;
-      transform: translateZ(0);
+    input, textarea, .selectable-text {
+      user-select: text;
+      -webkit-user-select: text;
+    }
+    .glassmorphism {
+      background: rgba(255, 255, 255, 0.92);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+    }
+    .dark .glassmorphism {
+      background: rgba(15, 23, 42, 0.92);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+    }
+    .custom-scroll::-webkit-scrollbar {
+      width: 5px;
+      height: 5px;
+    }
+    .custom-scroll::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 9999px;
+    }
+    .dark .custom-scroll::-webkit-scrollbar-thumb {
+      background: #334155;
+    }
+    #patternPad {
+      touch-action: none;
     }
   </style>
 </head>
-<body>
-  <iframe
-    id="viewer"
-    allow="clipboard-read; clipboard-write; fullscreen; geolocation; microphone; camera"
-    sandbox="allow-scripts allow-same-origin allow-forms allow-modals allow-popups allow-downloads allow-top-navigation-by-user-activation"
-  ></iframe>
+<body class="bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 min-h-screen flex flex-col font-sans transition-colors duration-200">
+
+  <!-- CUSTOM TOAST NOTIFICATIONS -->
+  <div id="toastContainer" class="fixed bottom-6 left-4 right-4 sm:left-auto sm:right-5 z-[80] flex flex-col items-center sm:items-end gap-2 pointer-events-none"></div>
+
+  <!-- CUSTOM CONFIRMATION / ALERT DIALOG -->
+  <div id="customDialogModal" class="hidden fixed inset-0 z-[70] flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-sm">
+    <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl w-full max-w-sm p-6 shadow-2xl transform transition-all">
+      <div class="flex items-center space-x-3 mb-3">
+        <div id="dialogIconWrap" class="w-10 h-10 rounded-2xl bg-rose-100 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400 flex items-center justify-center flex-shrink-0">
+          <i id="dialogIcon" class="fa-solid fa-triangle-exclamation text-lg"></i>
+        </div>
+        <h3 id="dialogTitle" class="text-base font-bold text-slate-900 dark:text-white">Confirm Action</h3>
+      </div>
+      <p id="dialogMessage" class="text-sm text-slate-600 dark:text-slate-300 leading-relaxed mb-6"></p>
+      <div class="flex items-center justify-end space-x-2.5">
+        <button id="dialogCancelBtn" type="button" class="px-4 py-2.5 text-xs font-semibold text-slate-600 dark:text-slate-300 active:scale-95 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition">
+          Cancel
+        </button>
+        <button id="dialogConfirmBtn" type="button" class="px-4 py-2.5 text-xs font-semibold bg-rose-600 active:scale-95 hover:bg-rose-700 text-white rounded-xl shadow-md transition">
+          Confirm
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- THEME TOGGLE FLOATING (Auth Screen) -->
+  <div id="floatingThemeWrap" class="fixed top-4 right-4 z-50 flex items-center space-x-2">
+    <button id="themeToggleBtn" onclick="toggleTheme()" class="w-10 h-10 rounded-full bg-white dark:bg-slate-800 shadow-md border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-amber-400 active:scale-90 transition-transform flex items-center justify-center" title="Toggle Light/Dark Theme">
+      <i id="themeIcon" class="fa-solid fa-moon text-base"></i>
+    </button>
+  </div>
+
+  <!-- ========================================================= -->
+  <!-- VIEW 1: PATTERN AUTHENTICATION SCREEN (LOGIN / REGISTER)  -->
+  <!-- ========================================================= -->
+  <div id="authScreen" class="flex-1 flex items-center justify-center p-4">
+    <div class="w-full max-w-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 sm:p-8 shadow-2xl relative overflow-hidden">
+      <div class="absolute -top-20 -left-20 w-44 h-44 bg-indigo-500/20 rounded-full blur-3xl pointer-events-none"></div>
+      <div class="absolute -bottom-20 -right-20 w-44 h-44 bg-purple-500/20 rounded-full blur-3xl pointer-events-none"></div>
+
+      <!-- Brand Header -->
+      <div class="text-center mb-5 relative">
+        <div class="w-14 h-14 mx-auto mb-2.5 bg-gradient-to-tr from-indigo-600 to-violet-500 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-indigo-500/30">
+          <i class="fa-solid fa-share-nodes text-xl"></i>
+        </div>
+        <h1 class="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">Sharable</h1>
+        <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">Draw your pattern to unlock or create a vault</p>
+      </div>
+
+      <!-- Mode Switcher Tabs -->
+      <div class="flex p-1 bg-slate-100 dark:bg-slate-800 rounded-xl mb-5 text-xs font-semibold">
+        <button id="tabLogin" onclick="switchAuthMode('login')" class="flex-1 py-2.5 rounded-lg bg-white dark:bg-slate-700 text-indigo-600 dark:text-white shadow-sm transition">
+          Unlock Vault
+        </button>
+        <button id="tabRegister" onclick="switchAuthMode('register')" class="flex-1 py-2.5 rounded-lg text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition">
+          Create New User
+        </button>
+      </div>
+
+      <!-- New User Name Input -->
+      <div id="registerNameWrap" class="hidden mb-4">
+        <label class="block text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5">Your Name</label>
+        <div class="relative">
+          <span class="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-400 pointer-events-none">
+            <i class="fa-solid fa-user"></i>
+          </span>
+          <input type="text" id="newUserNameInput" placeholder="Enter your name (e.g. Aklavya)"
+            class="w-full pl-10 pr-4 py-2.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none text-slate-900 dark:text-white">
+        </div>
+      </div>
+
+      <!-- Step Instruction Banner -->
+      <div class="text-center mb-3">
+        <span id="patternStepBadge" class="inline-flex items-center space-x-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-300 border border-indigo-200/70 dark:border-indigo-800/60">
+          <i class="fa-solid fa-fingerprint"></i>
+          <span id="patternInstructionText">Draw your pattern to unlock</span>
+        </span>
+      </div>
+
+      <!-- 3x3 Interactive Pattern Lock Canvas -->
+      <div class="flex flex-col items-center justify-center my-2">
+        <div id="patternPad" class="relative w-64 h-64 bg-slate-50 dark:bg-slate-950/80 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-inner flex items-center justify-center cursor-pointer">
+          <svg id="patternSvg" class="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 256 256">
+            <polyline id="patternLine" fill="none" stroke="#6366f1" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" points="" />
+            <line id="patternActiveLine" x1="0" y1="0" x2="0" y2="0" stroke="#818cf8" stroke-width="3" stroke-dasharray="5,5" stroke-linecap="round" class="hidden" />
+          </svg>
+          <div id="patternNodesGrid" class="grid grid-cols-3 w-full h-full p-5 place-items-center z-10"></div>
+        </div>
+
+        <div class="mt-3 flex items-center justify-between w-64 px-1">
+          <div class="text-xs text-slate-400 flex items-center space-x-1.5">
+            <span>Sequence:</span>
+            <span id="patternDigitsPreview" class="font-mono font-bold text-slate-700 dark:text-slate-200 tracking-widest">••••</span>
+          </div>
+          <button type="button" onclick="resetPatternFlow()" class="text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:underline">
+            Reset Pattern
+          </button>
+        </div>
+      </div>
+
+      <!-- Inline Auth Status Alert -->
+      <div id="authAlert" class="hidden mt-4 p-3 rounded-xl text-xs font-medium text-center"></div>
+
+      <div class="mt-5 pt-4 border-t border-slate-100 dark:border-slate-800 text-center">
+        <p class="text-[11px] text-slate-400">Connect at least 4 dots • Syncs files & texts across all devices</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================================= -->
+  <!-- VIEW 2: DASHBOARD SCREEN (NATIVE APP SHELL)               -->
+  <!-- ========================================================= -->
+  <div id="dashboardScreen" class="hidden flex-1 flex flex-col pb-20 sm:pb-6">
+    <!-- App Top Bar -->
+    <header class="glassmorphism sticky top-0 z-40 border-b border-slate-200/80 dark:border-slate-800/80 px-4 lg:px-8 py-3">
+      <div class="max-w-7xl mx-auto flex items-center justify-between gap-2">
+        <div class="flex items-center space-x-3">
+          <div class="w-9 h-9 bg-indigo-600 rounded-xl flex items-center justify-center text-white shadow-md shadow-indigo-500/20 flex-shrink-0">
+            <i class="fa-solid fa-share-nodes text-sm"></i>
+          </div>
+          <div>
+            <div class="flex items-center space-x-2">
+              <h1 class="text-base font-bold text-slate-900 dark:text-white leading-tight">Sharable</h1>
+              <span id="userGreetingBadge" class="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
+                Vault
+              </span>
+            </div>
+            <p class="text-[11px] text-slate-500 dark:text-slate-400">Cloud File & Text Locker</p>
+          </div>
+        </div>
+
+        <div class="flex items-center space-x-2">
+          <!-- Desktop Quick Share Button -->
+          <button onclick="openQuickShareModal()" class="hidden sm:flex py-2 px-3.5 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white rounded-xl font-medium text-xs shadow-sm items-center space-x-1.5 transition">
+            <i class="fa-solid fa-paper-plane"></i>
+            <span>Quick Share</span>
+          </button>
+
+          <!-- Desktop Upload File Button -->
+          <button onclick="openUploadModal()" class="hidden sm:flex py-2 px-4 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white rounded-xl font-medium text-xs shadow-sm items-center space-x-1.5 transition">
+            <i class="fa-solid fa-cloud-arrow-up"></i>
+            <span>Upload File</span>
+          </button>
+
+          <!-- Theme Switcher -->
+          <button onclick="toggleTheme()" class="w-9 h-9 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-amber-400 active:scale-90 transition flex items-center justify-center" title="Switch Theme">
+            <i id="headerThemeIcon" class="fa-solid fa-sun text-sm"></i>
+          </button>
+
+          <!-- Lock Button -->
+          <button onclick="logoutVault()" class="h-9 px-3 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-semibold active:scale-95 transition flex items-center space-x-1.5" title="Lock Vault">
+            <i class="fa-solid fa-lock"></i>
+            <span>Lock</span>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <!-- Main Content Area -->
+    <main class="max-w-7xl w-full mx-auto p-4 lg:p-8 flex-1 space-y-5">
+      
+      <!-- Stats Banner -->
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div class="p-3.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl">
+          <p class="text-[11px] uppercase font-semibold text-slate-400 mb-0.5">Total Files</p>
+          <h3 id="statTotalFiles" class="text-xl font-bold text-slate-900 dark:text-white">0</h3>
+        </div>
+        <div class="p-3.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl">
+          <p class="text-[11px] uppercase font-semibold text-slate-400 mb-0.5">Storage Used</p>
+          <h3 id="statTotalSize" class="text-xl font-bold text-slate-900 dark:text-white">0 MB</h3>
+        </div>
+        <div class="p-3.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl">
+          <p class="text-[11px] uppercase font-semibold text-slate-400 mb-0.5">Media</p>
+          <h3 id="statMediaFiles" class="text-xl font-bold text-indigo-600 dark:text-indigo-400">0</h3>
+        </div>
+        <div class="p-3.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl">
+          <p class="text-[11px] uppercase font-semibold text-slate-400 mb-0.5">Shared Notes</p>
+          <h3 id="statSnippetsCount" class="text-xl font-bold text-emerald-600 dark:text-emerald-400">0</h3>
+        </div>
+      </div>
+
+      <!-- QUICK SHARED TEXT BOARD -->
+      <div id="sharedTextsSection" class="hidden bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-sm">
+        <div class="flex items-center justify-between mb-3">
+          <div class="flex items-center space-x-2">
+            <span class="w-7 h-7 rounded-lg bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 flex items-center justify-center text-xs">
+              <i class="fa-solid fa-align-left"></i>
+            </span>
+            <h2 class="text-sm font-bold text-slate-900 dark:text-white">Quick Shared Text & Links</h2>
+          </div>
+          <button onclick="openQuickShareModal()" class="text-xs font-semibold text-emerald-600 dark:text-emerald-400 hover:underline">+ Add Text</button>
+        </div>
+        <div id="sharedTextsList" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3"></div>
+      </div>
+
+      <!-- Controls: Search, Date Filter, File Type Filter, View Switcher -->
+      <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-3.5 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-3">
+        <!-- Search Bar -->
+        <div class="relative flex-1">
+          <span class="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-400 pointer-events-none">
+            <i class="fa-solid fa-magnifying-glass text-xs"></i>
+          </span>
+          <input type="text" id="searchInput" oninput="applyFilters()" placeholder="Search files by custom name..."
+            class="w-full pl-9 pr-4 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-800 dark:text-slate-100 placeholder:text-slate-400">
+        </div>
+
+        <!-- Filter Controls -->
+        <div class="flex flex-wrap items-center gap-2">
+          <!-- Date Filter -->
+          <div class="flex items-center space-x-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-3 py-1.5 rounded-xl text-xs">
+            <i class="fa-regular fa-calendar text-slate-400"></i>
+            <input type="date" id="dateFilterInput" onchange="applyFilters()" class="bg-transparent border-0 text-slate-700 dark:text-slate-200 focus:outline-none text-xs">
+            <button onclick="clearDateFilter()" id="clearDateBtn" class="hidden text-slate-400 hover:text-rose-500" title="Clear Date"><i class="fa-solid fa-xmark"></i></button>
+          </div>
+
+          <!-- Type Filter -->
+          <select id="typeFilterSelect" onchange="applyFilters()" class="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-medium text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+            <option value="all">All Types</option>
+            <option value="image">Images</option>
+            <option value="document">PDF & Docs</option>
+            <option value="video">Videos</option>
+            <option value="audio">Audio</option>
+            <option value="archive">Archives</option>
+          </select>
+
+          <!-- View Layout Toggle -->
+          <div class="bg-slate-100 dark:bg-slate-800 p-0.5 rounded-xl flex items-center border border-slate-200 dark:border-slate-700 ml-auto sm:ml-0">
+            <button id="viewGridBtn" onclick="setViewMode('grid')" class="p-2 rounded-lg bg-white dark:bg-slate-700 text-indigo-600 dark:text-white shadow-sm transition" title="Grid View">
+              <i class="fa-solid fa-table-cells text-xs"></i>
+            </button>
+            <button id="viewListBtn" onclick="setViewMode('list')" class="p-2 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition" title="List View">
+              <i class="fa-solid fa-list text-xs"></i>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Gallery / Files View Container -->
+      <div id="filesContainer" class="min-h-[280px]"></div>
+    </main>
+
+    <!-- MOBILE BOTTOM ACTION DOCK -->
+    <div class="sm:hidden fixed bottom-0 inset-x-0 z-40 glassmorphism border-t border-slate-200/80 dark:border-slate-800/80 px-4 py-2.5 flex items-center gap-3">
+      <button onclick="openQuickShareModal()" class="flex-1 py-3 bg-emerald-600 active:scale-95 text-white rounded-2xl font-semibold text-xs shadow-lg shadow-emerald-600/20 flex items-center justify-center space-x-2 transition">
+        <i class="fa-solid fa-paper-plane"></i>
+        <span>Quick Share Text</span>
+      </button>
+      <button onclick="openUploadModal()" class="flex-1 py-3 bg-indigo-600 active:scale-95 text-white rounded-2xl font-semibold text-xs shadow-lg shadow-indigo-600/25 flex items-center justify-center space-x-2 transition">
+        <i class="fa-solid fa-cloud-arrow-up"></i>
+        <span>Upload File</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- CUSTOM MODAL: QUICK SHARE TEXT -->
+  <div id="quickShareModal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm">
+    <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl w-full max-w-lg overflow-hidden shadow-2xl">
+      <div class="px-6 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
+        <div class="flex items-center space-x-2.5">
+          <div class="w-8 h-8 rounded-lg bg-emerald-50 dark:bg-emerald-900/40 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
+            <i class="fa-solid fa-paper-plane"></i>
+          </div>
+          <h2 class="font-bold text-slate-900 dark:text-white text-sm sm:text-base">Quick Share Text</h2>
+        </div>
+        <button onclick="closeQuickShareModal()" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1">
+          <i class="fa-solid fa-xmark text-lg"></i>
+        </button>
+      </div>
+
+      <form onsubmit="handleQuickTextSave(event)" class="p-5 sm:p-6 space-y-4">
+        <div>
+          <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5">Enter Text, Link, or Note</label>
+          <textarea id="quickShareTextarea" rows="5" required placeholder="Paste a link, code snippet, message, or note here to access it instantly across your devices..."
+            class="w-full p-3.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 text-slate-800 dark:text-slate-100 custom-scroll"></textarea>
+        </div>
+
+        <div class="flex flex-wrap items-center justify-between gap-2 pt-1">
+          <button type="button" onclick="nativeShareCurrentText()" class="px-3.5 py-2.5 text-xs font-semibold bg-slate-100 dark:bg-slate-800 active:scale-95 text-slate-700 dark:text-slate-200 rounded-xl transition flex items-center space-x-1.5">
+            <i class="fa-solid fa-share-from-square"></i>
+            <span>Share / Copy</span>
+          </button>
+
+          <div class="flex items-center space-x-2">
+            <button type="button" onclick="closeQuickShareModal()" class="px-4 py-2.5 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition">Cancel</button>
+            <button type="submit" id="saveQuickTextBtn" class="px-5 py-2.5 text-xs font-semibold bg-emerald-600 active:scale-95 hover:bg-emerald-700 text-white rounded-xl shadow-md shadow-emerald-500/20 transition flex items-center space-x-1.5">
+              <i class="fa-solid fa-cloud-arrow-up"></i>
+              <span>Save to Vault</span>
+            </button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- CUSTOM MODAL: UPLOAD FILE -->
+  <div id="uploadModal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm">
+    <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl w-full max-w-lg overflow-hidden shadow-2xl">
+      <div class="px-6 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
+        <div class="flex items-center space-x-2.5">
+          <div class="w-8 h-8 rounded-lg bg-indigo-50 dark:bg-indigo-900/40 text-indigo-600 dark:text-indigo-400 flex items-center justify-center">
+            <i class="fa-solid fa-cloud-arrow-up"></i>
+          </div>
+          <h2 class="font-bold text-slate-900 dark:text-white text-sm sm:text-base">Upload File to Sharable</h2>
+        </div>
+        <button onclick="closeUploadModal()" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1">
+          <i class="fa-solid fa-xmark text-lg"></i>
+        </button>
+      </div>
+
+      <form id="fileUploadForm" onsubmit="handleFileUpload(event)" class="p-5 sm:p-6 space-y-4">
+        <div>
+          <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2">Pick File from Device</label>
+          <div id="dropZone" onclick="document.getElementById('actualFileInput').click()" class="border-2 border-dashed border-slate-300 dark:border-slate-700 hover:border-indigo-500 dark:hover:border-indigo-400 rounded-2xl p-6 text-center cursor-pointer bg-slate-50/50 dark:bg-slate-800/40 active:scale-[0.99] transition">
+            <input type="file" id="actualFileInput" onchange="onFilePicked(this)" class="hidden">
+            <div id="pickerEmptyState">
+              <i class="fa-solid fa-folder-open text-3xl text-indigo-500 mb-2"></i>
+              <p class="text-sm font-semibold text-slate-800 dark:text-slate-200">Tap to choose file</p>
+              <p class="text-xs text-slate-400 mt-1">PDFs, images, videos, documents & ZIPs</p>
+            </div>
+            <div id="pickerSelectedState" class="hidden flex items-center justify-between bg-white dark:bg-slate-800 p-3 rounded-xl border border-slate-200 dark:border-slate-700 text-left">
+              <div class="flex items-center space-x-3 overflow-hidden">
+                <i id="selectedFileIcon" class="fa-solid fa-file text-2xl text-indigo-500 flex-shrink-0"></i>
+                <div class="truncate">
+                  <p id="selectedFileOriginalName" class="text-sm font-semibold truncate text-slate-900 dark:text-white"></p>
+                  <p id="selectedFileSize" class="text-xs text-slate-400"></p>
+                </div>
+              </div>
+              <button type="button" onclick="event.stopPropagation(); resetPickedFile()" class="p-1.5 text-slate-400 hover:text-rose-500"><i class="fa-solid fa-trash-can"></i></button>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5">Custom File Name</label>
+          <div class="relative">
+            <span class="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-400">
+              <i class="fa-solid fa-tag"></i>
+            </span>
+            <input type="text" id="customFileNameInput" placeholder="e.g. Semester_Notes" required
+              class="w-full pl-10 pr-20 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-800 dark:text-slate-100">
+            <span id="detectedExtBadge" class="absolute inset-y-0 right-0 pr-3 flex items-center text-xs font-mono font-bold text-slate-400"></span>
+          </div>
+          <p class="text-[11px] text-slate-400 mt-1">Saved & downloaded with this exact name.</p>
+        </div>
+
+        <div id="uploadProgressContainer" class="hidden space-y-1.5">
+          <div class="flex justify-between text-xs font-medium text-slate-500 dark:text-slate-400">
+            <span id="uploadStatusText">Uploading...</span>
+            <span id="uploadPercent">0%</span>
+          </div>
+          <div class="w-full bg-slate-200 dark:bg-slate-700 h-2 rounded-full overflow-hidden">
+            <div id="uploadProgressBar" class="bg-indigo-600 h-full w-0 transition-all duration-150"></div>
+          </div>
+        </div>
+
+        <div class="flex items-center justify-end space-x-2.5 pt-2">
+          <button type="button" onclick="closeUploadModal()" class="px-4 py-2.5 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition">Cancel</button>
+          <button type="submit" id="startUploadBtn" class="px-5 py-2.5 text-xs font-semibold bg-indigo-600 active:scale-95 hover:bg-indigo-700 text-white rounded-xl shadow-md shadow-indigo-500/20 transition flex items-center space-x-2">
+            <i class="fa-solid fa-cloud-arrow-up"></i>
+            <span>Upload Now</span>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- FILE PREVIEW MODAL -->
+  <div id="previewModal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
+    <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl w-full max-w-3xl max-h-[88vh] flex flex-col overflow-hidden shadow-2xl">
+      <div class="px-5 py-3.5 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
+        <div class="truncate mr-3">
+          <h3 id="previewTitle" class="font-bold text-sm sm:text-base text-slate-900 dark:text-white truncate"></h3>
+          <p id="previewMeta" class="text-[11px] text-slate-400 mt-0.5"></p>
+        </div>
+        <div class="flex items-center space-x-2 flex-shrink-0">
+          <button id="previewDownloadBtn" type="button" class="px-3.5 py-2 bg-indigo-600 active:scale-95 hover:bg-indigo-700 text-white rounded-xl text-xs font-semibold transition flex items-center space-x-1.5">
+            <i class="fa-solid fa-download"></i>
+            <span>Download</span>
+          </button>
+          <button onclick="closePreviewModal()" class="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-lg">
+            <i class="fa-solid fa-xmark text-lg"></i>
+          </button>
+        </div>
+      </div>
+      <div id="previewBody" class="flex-1 overflow-auto p-4 flex items-center justify-center bg-slate-100 dark:bg-slate-950 min-h-[300px]"></div>
+    </div>
+  </div>
+
+  <iframe id="silentDownloadFrame" class="hidden"></iframe>
 
   <script>
-    (function () {
-      const DB_URL = "https://webprojects-7b9b2-default-rtdb.firebaseio.com";
+    // ==========================================
+    // 1. CREDENTIALS & INITIALIZATION
+    // ==========================================
+    const CLOUDINARY_CLOUD_NAME = "dl1ishrkv";
+    const CLOUDINARY_API_KEY = "433163499287729";
+    const CLOUDINARY_API_SECRET = "2rP00sgy0FGPVsKYDEG0GH-k5mo";
 
-      // Supports:
-      // 1. yoursite.github.io/repo/         -> fetches "web1"
-      // 2. yoursite.github.io/repo/?web2    -> fetches "web2"
-      // 3. yoursite.github.io/repo/?p=web2  -> fetches "web2"
-      const rawSearch = window.location.search.replace(/^\?/, "");
-      const params = new URLSearchParams(window.location.search);
-      let key = "web1";
+    const firebaseConfig = {
+      apiKey: "AIzaSyDE_Tzjwmoh-xuFTFYpT5ElGjfN6T0VEsI",
+      authDomain: "sanchitution.firebaseapp.com",
+      databaseURL: "https://sanchitution-default-rtdb.firebaseio.com",
+      projectId: "sanchitution",
+      storageBucket: "sanchitution.firebasestorage.app",
+      messagingSenderId: "349272071034",
+      appId: "1:349272071034:web:e06bb9e9218a93741314c3",
+      measurementId: "G-HM1LLDNN2R"
+    };
 
-      if (params.get("p")) {
-        key = params.get("p");
-      } else if (rawSearch && !rawSearch.includes("=")) {
-        key = decodeURIComponent(rawSearch.split("&")[0]);
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+
+    // App State
+    let currentVaultCode = null;
+    let currentUserName = "";
+    let authMode = "login";
+    let registerStep = 1;
+    let firstDrawnPattern = "";
+    let userFiles = [];
+    let userTexts = [];
+    let currentViewMode = "grid";
+    let pickedFileObj = null;
+
+    // Android Hardware Back Button Handler
+    window.handleAndroidBack = function() {
+      const dialog = document.getElementById("customDialogModal");
+      if (!dialog.classList.contains("hidden")) {
+        document.getElementById("dialogCancelBtn").click();
+        return true;
+      }
+      const preview = document.getElementById("previewModal");
+      if (!preview.classList.contains("hidden")) {
+        closePreviewModal();
+        return true;
+      }
+      const upload = document.getElementById("uploadModal");
+      if (!upload.classList.contains("hidden")) {
+        closeUploadModal();
+        return true;
+      }
+      const quickShare = document.getElementById("quickShareModal");
+      if (!quickShare.classList.contains("hidden")) {
+        closeQuickShareModal();
+        return true;
+      }
+      return false;
+    };
+
+    // ==========================================
+    // 2. CUSTOM DIALOG & TOAST SYSTEM
+    // ==========================================
+    function showCustomConfirm({ title, message, confirmText = "Confirm", isDanger = true }) {
+      return new Promise((resolve) => {
+        const modal = document.getElementById("customDialogModal");
+        const titleEl = document.getElementById("dialogTitle");
+        const msgEl = document.getElementById("dialogMessage");
+        const confirmBtn = document.getElementById("dialogConfirmBtn");
+        const cancelBtn = document.getElementById("dialogCancelBtn");
+        const iconWrap = document.getElementById("dialogIconWrap");
+        const icon = document.getElementById("dialogIcon");
+
+        titleEl.innerText = title;
+        msgEl.innerText = message;
+        confirmBtn.innerText = confirmText;
+
+        if (isDanger) {
+          iconWrap.className = "w-10 h-10 rounded-2xl bg-rose-100 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400 flex items-center justify-center flex-shrink-0";
+          icon.className = "fa-solid fa-trash-can text-base";
+          confirmBtn.className = "px-4 py-2.5 text-xs font-semibold bg-rose-600 hover:bg-rose-700 text-white rounded-xl shadow-md transition";
+        } else {
+          iconWrap.className = "w-10 h-10 rounded-2xl bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 flex items-center justify-center flex-shrink-0";
+          icon.className = "fa-solid fa-circle-info text-base";
+          confirmBtn.className = "px-4 py-2.5 text-xs font-semibold bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl shadow-md transition";
+        }
+
+        modal.classList.remove("hidden");
+
+        const cleanup = (result) => {
+          modal.classList.add("hidden");
+          confirmBtn.onclick = null;
+          cancelBtn.onclick = null;
+          resolve(result);
+        };
+
+        confirmBtn.onclick = () => cleanup(true);
+        cancelBtn.onclick = () => cleanup(false);
+      });
+    }
+
+    function showToast(message, type = "info") {
+      const container = document.getElementById("toastContainer");
+      const toast = document.createElement("div");
+      const bgClass = type === "success" 
+        ? "bg-emerald-600 text-white" 
+        : type === "error" 
+          ? "bg-rose-600 text-white" 
+          : "bg-slate-900 dark:bg-slate-800 text-white border border-slate-700";
+
+      toast.className = `${bgClass} px-4 py-3 rounded-2xl shadow-xl text-xs font-semibold flex items-center space-x-2 pointer-events-auto transition-all duration-300 transform translate-y-2 opacity-0`;
+      toast.innerHTML = `<i class="fa-solid ${type === 'success' ? 'fa-circle-check' : type === 'error' ? 'fa-circle-exclamation' : 'fa-circle-info'}"></i><span>${escapeHtml(message)}</span>`;
+      container.appendChild(toast);
+
+      requestAnimationFrame(() => {
+        toast.classList.remove("translate-y-2", "opacity-0");
+      });
+
+      setTimeout(() => {
+        toast.classList.add("opacity-0", "translate-y-2");
+        setTimeout(() => toast.remove(), 300);
+      }, 3000);
+    }
+
+    // ==========================================
+    // 3. THEME SWITCHER
+    // ==========================================
+    function initTheme() {
+      const savedTheme = localStorage.getItem("sharable_theme") || "dark";
+      applyThemeUI(savedTheme === "dark");
+    }
+
+    function applyThemeUI(isDark) {
+      if (isDark) {
+        document.documentElement.classList.add("dark");
+        document.getElementById("themeIcon").className = "fa-solid fa-sun text-amber-400 text-base";
+        const hIcon = document.getElementById("headerThemeIcon");
+        if (hIcon) hIcon.className = "fa-solid fa-sun text-amber-400 text-sm";
+      } else {
+        document.documentElement.classList.remove("dark");
+        document.getElementById("themeIcon").className = "fa-solid fa-moon text-slate-700 text-base";
+        const hIcon = document.getElementById("headerThemeIcon");
+        if (hIcon) hIcon.className = "fa-solid fa-moon text-slate-700 text-sm";
+      }
+    }
+
+    function toggleTheme() {
+      const isDark = document.documentElement.classList.toggle("dark");
+      localStorage.setItem("sharable_theme", isDark ? "dark" : "light");
+      applyThemeUI(isDark);
+    }
+
+    // ==========================================
+    // 4. INTERACTIVE 3x3 PATTERN LOCK ENGINE
+    // ==========================================
+    let isDrawingPattern = false;
+    let selectedNodes = [];
+
+    function initPatternPad() {
+      const grid = document.getElementById("patternNodesGrid");
+      grid.innerHTML = "";
+      for (let i = 1; i <= 9; i++) {
+        const cell = document.createElement("div");
+        cell.className = "w-full h-full flex items-center justify-center";
+        cell.innerHTML = `
+          <div data-node="${i}" class="pattern-node w-11 h-11 rounded-full flex items-center justify-center transition-transform duration-150">
+            <div class="node-ring w-9 h-9 rounded-full border-2 border-slate-300 dark:border-slate-700 flex items-center justify-center transition-all duration-150">
+              <div class="node-core w-3 h-3 rounded-full bg-slate-400 dark:bg-slate-600 transition-all duration-150"></div>
+            </div>
+          </div>
+        `;
+        grid.appendChild(cell);
       }
 
-      // Sanitize key to valid Firebase path segment
-      key = key.replace(/[^a-zA-Z0-9_-]/g, "") || "web1";
+      const pad = document.getElementById("patternPad");
+      pad.addEventListener("pointerdown", onPatternStart);
+      window.addEventListener("pointermove", onPatternMove);
+      window.addEventListener("pointerup", onPatternEnd);
+    }
 
-      fetch(`${DB_URL}/${key}.json`, { cache: "no-store" })
-        .then((res) => {
-          if (!res.ok) throw new Error("Fetch failed");
-          return res.json();
-        })
-        .then((data) => {
-          // Supports both direct string value (web1: "<html>...") and object (web1: { webcode: "<html>..." })
-          const html = typeof data === "string"
-            ? data
-            : data && (data.webcode || data.code || data.html);
+    function getNodeCenter(nodeNum) {
+      const padRect = document.getElementById("patternPad").getBoundingClientRect();
+      const nodeEl = document.querySelector(`.pattern-node[data-node="${nodeNum}"]`);
+      const nodeRect = nodeEl.getBoundingClientRect();
+      const scaleX = 256 / padRect.width;
+      const scaleY = 256 / padRect.height;
+      return {
+        x: (nodeRect.left + nodeRect.width / 2 - padRect.left) * scaleX,
+        y: (nodeRect.top + nodeRect.height / 2 - padRect.top) * scaleY
+      };
+    }
 
-          if (!html || typeof html !== "string") return;
+    function activateNode(num) {
+      if (selectedNodes.includes(num)) return;
+      selectedNodes.push(num);
 
-          // Sync child <title> and favicon to the host browser tab
-          const titleMatch = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
-          if (titleMatch && titleMatch[1]) {
-            document.title = titleMatch[1].trim();
+      const nodeEl = document.querySelector(`.pattern-node[data-node="${num}"]`);
+      nodeEl.classList.add("scale-110");
+      const ring = nodeEl.querySelector(".node-ring");
+      const core = nodeEl.querySelector(".node-core");
+      ring.className = "node-ring w-10 h-10 rounded-full border-2 border-indigo-500 bg-indigo-500/15 flex items-center justify-center transition-all duration-150";
+      core.className = "node-core w-3.5 h-3.5 rounded-full bg-indigo-600 dark:bg-indigo-400 transition-all duration-150";
+
+      updatePatternLines();
+      document.getElementById("patternDigitsPreview").innerText = selectedNodes.join("");
+    }
+
+    function updatePatternLines(pointerPos = null) {
+      const polyline = document.getElementById("patternLine");
+      const activeLine = document.getElementById("patternActiveLine");
+
+      if (selectedNodes.length === 0) {
+        polyline.setAttribute("points", "");
+        activeLine.classList.add("hidden");
+        return;
+      }
+
+      const pts = selectedNodes.map(n => {
+        const c = getNodeCenter(n);
+        return `${c.x},${c.y}`;
+      });
+      polyline.setAttribute("points", pts.join(" "));
+
+      if (pointerPos && isDrawingPattern) {
+        const lastCenter = getNodeCenter(selectedNodes[selectedNodes.length - 1]);
+        activeLine.setAttribute("x1", lastCenter.x);
+        activeLine.setAttribute("y1", lastCenter.y);
+        activeLine.setAttribute("x2", pointerPos.x);
+        activeLine.setAttribute("y2", pointerPos.y);
+        activeLine.classList.remove("hidden");
+      } else {
+        activeLine.classList.add("hidden");
+      }
+    }
+
+    function detectHitNode(clientX, clientY) {
+      const nodes = document.querySelectorAll(".pattern-node");
+      for (const node of nodes) {
+        const rect = node.getBoundingClientRect();
+        const cx = rect.left + rect.width / 2;
+        const cy = rect.top + rect.height / 2;
+        const dist = Math.hypot(clientX - cx, clientY - cy);
+        if (dist <= 26) {
+          return parseInt(node.getAttribute("data-node"), 10);
+        }
+      }
+      return null;
+    }
+
+    function onPatternStart(e) {
+      if (document.getElementById("authScreen").classList.contains("hidden")) return;
+      e.preventDefault();
+      clearPatternVisuals();
+      isDrawingPattern = true;
+      const hit = detectHitNode(e.clientX, e.clientY);
+      if (hit) activateNode(hit);
+    }
+
+    function onPatternMove(e) {
+      if (!isDrawingPattern) return;
+      const hit = detectHitNode(e.clientX, e.clientY);
+      if (hit) activateNode(hit);
+
+      const padRect = document.getElementById("patternPad").getBoundingClientRect();
+      const scaleX = 256 / padRect.width;
+      const scaleY = 256 / padRect.height;
+      updatePatternLines({
+        x: (e.clientX - padRect.left) * scaleX,
+        y: (e.clientY - padRect.top) * scaleY
+      });
+    }
+
+    function onPatternEnd() {
+      if (!isDrawingPattern) return;
+      isDrawingPattern = false;
+      updatePatternLines(null);
+
+      if (selectedNodes.length > 0) {
+        const numericCode = selectedNodes.join("");
+        processPatternSubmission(numericCode);
+      }
+    }
+
+    function clearPatternVisuals() {
+      selectedNodes = [];
+      document.getElementById("patternDigitsPreview").innerText = "••••";
+      document.getElementById("patternLine").setAttribute("points", "");
+      document.getElementById("patternActiveLine").classList.add("hidden");
+      document.querySelectorAll(".pattern-node").forEach(nodeEl => {
+        nodeEl.classList.remove("scale-110");
+        nodeEl.querySelector(".node-ring").className = "node-ring w-9 h-9 rounded-full border-2 border-slate-300 dark:border-slate-700 flex items-center justify-center transition-all duration-150";
+        nodeEl.querySelector(".node-core").className = "node-core w-3 h-3 rounded-full bg-slate-400 dark:bg-slate-600 transition-all duration-150";
+      });
+    }
+
+    function setPatternColorState(state) {
+      const line = document.getElementById("patternLine");
+      if (state === "error") {
+        line.setAttribute("stroke", "#f43f5e");
+      } else if (state === "success") {
+        line.setAttribute("stroke", "#10b981");
+      } else {
+        line.setAttribute("stroke", "#6366f1");
+      }
+    }
+
+    // ==========================================
+    // 5. PATTERN LOGIN & 2-STEP VAULT CREATION
+    // ==========================================
+    function switchAuthMode(mode) {
+      authMode = mode;
+      registerStep = 1;
+      firstDrawnPattern = "";
+      clearPatternVisuals();
+      setPatternColorState("default");
+      document.getElementById("authAlert").classList.add("hidden");
+
+      const tabLogin = document.getElementById("tabLogin");
+      const tabRegister = document.getElementById("tabRegister");
+      const nameWrap = document.getElementById("registerNameWrap");
+      const instruction = document.getElementById("patternInstructionText");
+
+      if (mode === "login") {
+        tabLogin.className = "flex-1 py-2.5 rounded-lg bg-white dark:bg-slate-700 text-indigo-600 dark:text-white shadow-sm transition";
+        tabRegister.className = "flex-1 py-2.5 rounded-lg text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition";
+        nameWrap.classList.add("hidden");
+        instruction.innerText = "Draw your pattern to unlock";
+      } else {
+        tabRegister.className = "flex-1 py-2.5 rounded-lg bg-white dark:bg-slate-700 text-indigo-600 dark:text-white shadow-sm transition";
+        tabLogin.className = "flex-1 py-2.5 rounded-lg text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition";
+        nameWrap.classList.remove("hidden");
+        instruction.innerText = "Step 1 of 2: Draw your new pattern";
+        setTimeout(() => document.getElementById("newUserNameInput").focus(), 100);
+      }
+    }
+
+    function resetPatternFlow() {
+      registerStep = 1;
+      firstDrawnPattern = "";
+      clearPatternVisuals();
+      setPatternColorState("default");
+      document.getElementById("authAlert").classList.add("hidden");
+      document.getElementById("patternInstructionText").innerText =
+        authMode === "login" ? "Draw your pattern to unlock" : "Step 1 of 2: Draw your new pattern";
+    }
+
+    function showAuthAlert(msg, type = "error") {
+      const el = document.getElementById("authAlert");
+      if (type === "error") {
+        el.className = "mt-4 p-3 rounded-xl text-xs font-semibold text-center bg-rose-100 dark:bg-rose-900/30 text-rose-700 dark:text-rose-400 border border-rose-200 dark:border-rose-800";
+      } else if (type === "success") {
+        el.className = "mt-4 p-3 rounded-xl text-xs font-semibold text-center bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800";
+      } else {
+        el.className = "mt-4 p-3 rounded-xl text-xs font-semibold text-center bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800";
+      }
+      el.innerText = msg;
+      el.classList.remove("hidden");
+    }
+
+    async function processPatternSubmission(patternDigits) {
+      if (patternDigits.length < 4) {
+        setPatternColorState("error");
+        showAuthAlert("Connect at least 4 dots for a valid pattern.", "error");
+        setTimeout(() => {
+          clearPatternVisuals();
+          setPatternColorState("default");
+        }, 750);
+        return;
+      }
+
+      if (authMode === "login") {
+        showAuthAlert("Verifying pattern...", "info");
+        try {
+          const vaultRef = db.ref("lockers/" + patternDigits);
+          const snapshot = await vaultRef.once("value");
+          if (!snapshot.exists()) {
+            setPatternColorState("error");
+            showAuthAlert("Pattern not recognized. Try again or switch to 'Create New User'.", "error");
+            setTimeout(() => {
+              clearPatternVisuals();
+              setPatternColorState("default");
+            }, 900);
+            return;
           }
 
-          const iconMatch = html.match(/<link[^>]*rel=["'](?:shortcut )?icon["'][^>]*href=["']([^"']+)["'][^>]*>/i);
-          if (iconMatch && iconMatch[1]) {
-            const link = document.createElement("link");
-            link.rel = "icon";
-            link.href = iconMatch[1];
-            document.head.appendChild(link);
+          const data = snapshot.val();
+          setPatternColorState("success");
+          showAuthAlert("Unlocked! Opening " + (data.owner_name || "your") + " vault...", "success");
+          setTimeout(() => {
+            enterDashboard(patternDigits, data.owner_name || "Personal");
+          }, 400);
+        } catch (err) {
+          setPatternColorState("error");
+          showAuthAlert("Connection error: " + err.message, "error");
+        }
+      } else {
+        const ownerName = document.getElementById("newUserNameInput").value.trim();
+        if (!ownerName) {
+          setPatternColorState("error");
+          showAuthAlert("Please enter your name above before drawing your pattern.", "error");
+          document.getElementById("newUserNameInput").focus();
+          setTimeout(() => {
+            clearPatternVisuals();
+            setPatternColorState("default");
+          }, 700);
+          return;
+        }
+
+        if (registerStep === 1) {
+          showAuthAlert("Checking pattern availability...", "info");
+          try {
+            const existing = await db.ref("lockers/" + patternDigits).once("value");
+            if (existing.exists()) {
+              setPatternColorState("error");
+              showAuthAlert("This pattern is already taken. Please draw a different pattern.", "error");
+              setTimeout(() => {
+                clearPatternVisuals();
+                setPatternColorState("default");
+              }, 950);
+              return;
+            }
+
+            firstDrawnPattern = patternDigits;
+            registerStep = 2;
+            setPatternColorState("success");
+            document.getElementById("patternInstructionText").innerText = "Step 2 of 2: Draw the same pattern again to confirm";
+            showAuthAlert("Pattern recorded! Now draw it a second time to verify.", "info");
+            setTimeout(() => {
+              clearPatternVisuals();
+              setPatternColorState("default");
+            }, 600);
+          } catch (err) {
+            showAuthAlert("Connection error: " + err.message, "error");
+          }
+        } else if (registerStep === 2) {
+          if (patternDigits !== firstDrawnPattern) {
+            setPatternColorState("error");
+            showAuthAlert("Patterns did not match! Resetting to Step 1—please draw your pattern again.", "error");
+            registerStep = 1;
+            firstDrawnPattern = "";
+            document.getElementById("patternInstructionText").innerText = "Step 1 of 2: Draw your new pattern";
+            setTimeout(() => {
+              clearPatternVisuals();
+              setPatternColorState("default");
+            }, 1000);
+            return;
           }
 
-          // Render full child document inside isolated hardware-accelerated iframe
-          document.getElementById("viewer").srcdoc = html;
-        })
-        .catch(() => {});
-    })();
+          showAuthAlert("Creating your encrypted Sharable vault...", "info");
+          try {
+            await db.ref("lockers/" + patternDigits).set({
+              owner_name: ownerName,
+              pattern_code: patternDigits,
+              created_at: new Date().toISOString(),
+              files_count: 0
+            });
+
+            setPatternColorState("success");
+            showAuthAlert("Vault created for " + ownerName + "!", "success");
+            setTimeout(() => {
+              enterDashboard(patternDigits, ownerName);
+            }, 450);
+          } catch (err) {
+            setPatternColorState("error");
+            showAuthAlert("Failed to create vault: " + err.message, "error");
+          }
+        }
+      }
+    }
+
+    function enterDashboard(code, ownerName = "Personal") {
+      currentVaultCode = code;
+      currentUserName = ownerName;
+      localStorage.setItem("sharable_active_code", code);
+      localStorage.setItem("sharable_active_owner", ownerName);
+
+      document.getElementById("userGreetingBadge").innerText = ownerName + "'s Vault";
+      document.getElementById("authScreen").classList.add("hidden");
+      document.getElementById("floatingThemeWrap").classList.add("hidden");
+      document.getElementById("dashboardScreen").classList.remove("hidden");
+
+      clearPatternVisuals();
+      setPatternColorState("default");
+      listenToLockerData(code);
+    }
+
+    function logoutVault() {
+      if (currentVaultCode) {
+        db.ref("lockers/" + currentVaultCode + "/files").off();
+        db.ref("lockers/" + currentVaultCode + "/texts").off();
+      }
+      currentVaultCode = null;
+      currentUserName = "";
+      localStorage.removeItem("sharable_active_code");
+      localStorage.removeItem("sharable_active_owner");
+
+      document.getElementById("dashboardScreen").classList.add("hidden");
+      document.getElementById("authScreen").classList.remove("hidden");
+      document.getElementById("floatingThemeWrap").classList.remove("hidden");
+      resetPatternFlow();
+    }
+
+    // ==========================================
+    // 6. REALTIME DATABASE SYNC
+    // ==========================================
+    function listenToLockerData(code) {
+      db.ref("lockers/" + code + "/files").on("value", (snapshot) => {
+        const val = snapshot.val();
+        userFiles = [];
+        if (val) {
+          Object.keys(val).forEach(key => {
+            userFiles.push({ id: key, ...val[key] });
+          });
+          userFiles.sort((a, b) => new Date(b.uploaded_at) - new Date(a.uploaded_at));
+        }
+        updateStats();
+        applyFilters();
+      });
+
+      db.ref("lockers/" + code + "/texts").on("value", (snapshot) => {
+        const val = snapshot.val();
+        userTexts = [];
+        if (val) {
+          Object.keys(val).forEach(key => {
+            userTexts.push({ id: key, ...val[key] });
+          });
+          userTexts.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+        }
+        updateStats();
+        renderSharedTexts();
+      });
+    }
+
+    function updateStats() {
+      document.getElementById("statTotalFiles").innerText = userFiles.length;
+      document.getElementById("statSnippetsCount").innerText = userTexts.length;
+
+      let totalBytes = 0;
+      let mediaCount = 0;
+
+      userFiles.forEach(f => {
+        totalBytes += (f.size || 0);
+        const t = (f.file_type || "").toLowerCase();
+        if (["image", "video", "audio"].includes(t)) {
+          mediaCount++;
+        }
+      });
+
+      const totalMb = (totalBytes / (1024 * 1024)).toFixed(2);
+      document.getElementById("statTotalSize").innerText = totalMb + " MB";
+      document.getElementById("statMediaFiles").innerText = mediaCount;
+    }
+
+    // ==========================================
+    // 7. QUICK SHARE TEXT FEATURE (ANDROID + WEB)
+    // ==========================================
+    function openQuickShareModal() {
+      document.getElementById("quickShareTextarea").value = "";
+      document.getElementById("quickShareModal").classList.remove("hidden");
+      setTimeout(() => document.getElementById("quickShareTextarea").focus(), 100);
+    }
+
+    function closeQuickShareModal() {
+      document.getElementById("quickShareModal").classList.add("hidden");
+    }
+
+    async function handleQuickTextSave(e) {
+      e.preventDefault();
+      const text = document.getElementById("quickShareTextarea").value.trim();
+      if (!text || !currentVaultCode) return;
+
+      const btn = document.getElementById("saveQuickTextBtn");
+      btn.disabled = true;
+
+      try {
+        await db.ref("lockers/" + currentVaultCode + "/texts").push({
+          content: text,
+          created_at: new Date().toISOString()
+        });
+        closeQuickShareModal();
+        showToast("Text saved to your Sharable vault!", "success");
+      } catch (err) {
+        showToast("Error saving text: " + err.message, "error");
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    async function nativeShareCurrentText() {
+      const text = document.getElementById("quickShareTextarea").value.trim();
+      if (!text) {
+        showToast("Type or paste some text first!", "error");
+        return;
+      }
+      if (window.AndroidBridge && window.AndroidBridge.shareText) {
+        window.AndroidBridge.shareText(text);
+        return;
+      }
+      if (navigator.share) {
+        try {
+          await navigator.share({ title: "Shared via Sharable", text: text });
+        } catch (err) {}
+      } else {
+        navigator.clipboard.writeText(text);
+        showToast("Copied text to clipboard!", "success");
+      }
+    }
+
+    function copySnippetText(id) {
+      const item = userTexts.find(t => t.id === id);
+      if (!item) return;
+      navigator.clipboard.writeText(item.content);
+      showToast("Copied text to clipboard!", "success");
+    }
+
+    async function shareSnippetText(id) {
+      const item = userTexts.find(t => t.id === id);
+      if (!item) return;
+      if (window.AndroidBridge && window.AndroidBridge.shareText) {
+        window.AndroidBridge.shareText(item.content);
+        return;
+      }
+      if (navigator.share) {
+        try {
+          await navigator.share({ title: "Shared via Sharable", text: item.content });
+        } catch (err) {}
+      } else {
+        copySnippetText(id);
+      }
+    }
+
+    async function deleteSnippetText(id) {
+      const confirmed = await showCustomConfirm({
+        title: "Delete Shared Text?",
+        message: "This text snippet will be permanently removed from your vault.",
+        confirmText: "Delete Text",
+        isDanger: true
+      });
+      if (!confirmed) return;
+
+      try {
+        await db.ref("lockers/" + currentVaultCode + "/texts/" + id).remove();
+        showToast("Text snippet removed", "info");
+      } catch (err) {
+        showToast("Failed to delete text", "error");
+      }
+    }
+
+    function renderSharedTexts() {
+      const section = document.getElementById("sharedTextsSection");
+      const list = document.getElementById("sharedTextsList");
+
+      if (userTexts.length === 0) {
+        section.classList.add("hidden");
+        return;
+      }
+
+      section.classList.remove("hidden");
+      list.innerHTML = userTexts.map(item => `
+        <div class="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/70 border border-slate-200 dark:border-slate-700 flex flex-col justify-between gap-2.5">
+          <p class="selectable-text text-xs text-slate-800 dark:text-slate-200 whitespace-pre-wrap break-words line-clamp-4 font-mono">${escapeHtml(item.content)}</p>
+          <div class="flex items-center justify-between pt-2 border-t border-slate-200/70 dark:border-slate-700/70 text-[11px] text-slate-400">
+            <span>${formatDate(item.created_at)}</span>
+            <div class="flex items-center space-x-2.5">
+              <button onclick="copySnippetText('${item.id}')" class="text-emerald-600 dark:text-emerald-400 hover:underline font-semibold flex items-center space-x-1">
+                <i class="fa-regular fa-copy"></i><span>Copy</span>
+              </button>
+              <button onclick="shareSnippetText('${item.id}')" class="text-indigo-600 dark:text-indigo-400 hover:underline font-semibold flex items-center space-x-1">
+                <i class="fa-solid fa-share"></i><span>Share</span>
+              </button>
+              <button onclick="deleteSnippetText('${item.id}')" class="text-slate-400 hover:text-rose-500">
+                <i class="fa-regular fa-trash-can"></i>
+              </button>
+            </div>
+          </div>
+        </div>
+      `).join("");
+    }
+
+    // ==========================================
+    // 8. FILE UPLOAD & CLOUDINARY INTEGRATION
+    // ==========================================
+    function openUploadModal() {
+      resetPickedFile();
+      document.getElementById("uploadModal").classList.remove("hidden");
+    }
+
+    function closeUploadModal() {
+      document.getElementById("uploadModal").classList.add("hidden");
+      resetPickedFile();
+    }
+
+    function onFilePicked(input) {
+      if (input.files && input.files[0]) {
+        pickedFileObj = input.files[0];
+        document.getElementById("pickerEmptyState").classList.add("hidden");
+        document.getElementById("pickerSelectedState").classList.remove("hidden");
+        document.getElementById("selectedFileOriginalName").innerText = pickedFileObj.name;
+        document.getElementById("selectedFileSize").innerText = formatBytes(pickedFileObj.size);
+
+        const lastDot = pickedFileObj.name.lastIndexOf(".");
+        let ext = "";
+        let baseName = pickedFileObj.name;
+        if (lastDot > 0) {
+          baseName = pickedFileObj.name.substring(0, lastDot);
+          ext = pickedFileObj.name.substring(lastDot);
+        }
+        document.getElementById("customFileNameInput").value = baseName;
+        document.getElementById("detectedExtBadge").innerText = ext;
+      }
+    }
+
+    function resetPickedFile() {
+      pickedFileObj = null;
+      document.getElementById("actualFileInput").value = "";
+      document.getElementById("customFileNameInput").value = "";
+      document.getElementById("detectedExtBadge").innerText = "";
+      document.getElementById("pickerEmptyState").classList.remove("hidden");
+      document.getElementById("pickerSelectedState").classList.add("hidden");
+      document.getElementById("uploadProgressContainer").classList.add("hidden");
+      document.getElementById("uploadProgressBar").style.width = "0%";
+      document.getElementById("startUploadBtn").disabled = false;
+    }
+
+    function getFileTypeCategory(mime, filename) {
+      mime = (mime || "").toLowerCase();
+      const ext = filename.split('.').pop().toLowerCase();
+      if (mime.startsWith("image/") || ["jpg", "jpeg", "png", "webp", "gif", "svg"].includes(ext)) return "image";
+      if (mime.startsWith("video/") || ["mp4", "mkv", "mov", "webm"].includes(ext)) return "video";
+      if (mime.startsWith("audio/") || ["mp3", "wav", "m4a", "ogg"].includes(ext)) return "audio";
+      if (["zip", "rar", "7z", "tar", "gz"].includes(ext)) return "archive";
+      return "document";
+    }
+
+    async function handleFileUpload(e) {
+      e.preventDefault();
+      if (!pickedFileObj) {
+        showToast("Please pick a file first from your device.", "error");
+        return;
+      }
+
+      const customName = document.getElementById("customFileNameInput").value.trim();
+      if (!customName) {
+        showToast("Please provide a name for this file.", "error");
+        return;
+      }
+
+      const folderName = "vault_" + currentVaultCode;
+      const timestamp = Math.floor(Date.now() / 1000);
+      
+      const stringToSign = `folder=${folderName}&timestamp=${timestamp}${CLOUDINARY_API_SECRET}`;
+      const signature = CryptoJS.SHA1(stringToSign).toString();
+
+      const progressContainer = document.getElementById("uploadProgressContainer");
+      const progressBar = document.getElementById("uploadProgressBar");
+      const progressText = document.getElementById("uploadPercent");
+      const statusText = document.getElementById("uploadStatusText");
+      const submitBtn = document.getElementById("startUploadBtn");
+
+      progressContainer.classList.remove("hidden");
+      submitBtn.disabled = true;
+
+      const cat = getFileTypeCategory(pickedFileObj.type, pickedFileObj.name);
+      // Upload non-media documents/PDFs/ZIPs as 'raw' so Cloudinary never blocks PDFs with 401 image-security restrictions
+      let resourceType = "auto";
+      if (cat === "document" || cat === "archive") {
+        resourceType = "raw";
+      }
+
+      const formData = new FormData();
+      formData.append("file", pickedFileObj);
+      formData.append("api_key", CLOUDINARY_API_KEY);
+      formData.append("timestamp", timestamp);
+      formData.append("signature", signature);
+      formData.append("folder", folderName);
+
+      const xhr = new XMLHttpRequest();
+      xhr.open("POST", `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/${resourceType}/upload`);
+
+      xhr.upload.onprogress = (evt) => {
+        if (evt.lengthComputable) {
+          const percent = Math.round((evt.loaded / evt.total) * 100);
+          progressBar.style.width = percent + "%";
+          progressText.innerText = percent + "%";
+          statusText.innerText = `Uploading: ${percent}%`;
+        }
+      };
+
+      xhr.onload = async () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          const res = JSON.parse(xhr.responseText);
+          
+          const lastDot = pickedFileObj.name.lastIndexOf(".");
+          const ext = lastDot > 0 ? pickedFileObj.name.substring(lastDot) : "";
+          const fullDisplayName = customName.endsWith(ext) ? customName : customName + ext;
+
+          const fileRecord = {
+            custom_name: fullDisplayName,
+            original_name: pickedFileObj.name,
+            file_type: cat,
+            mime_type: pickedFileObj.type || getMimeFromExt(ext),
+            size: pickedFileObj.size,
+            url: res.secure_url,
+            cloudinary_resource_type: res.resource_type || resourceType,
+            cloudinary_public_id: res.public_id,
+            uploaded_at: new Date().toISOString()
+          };
+
+          await db.ref("lockers/" + currentVaultCode + "/files").push(fileRecord);
+          closeUploadModal();
+          showToast("File uploaded successfully!", "success");
+        } else {
+          showToast("Upload failed. Please try again.", "error");
+          submitBtn.disabled = false;
+        }
+      };
+
+      xhr.onerror = () => {
+        showToast("Network error during upload.", "error");
+        submitBtn.disabled = false;
+      };
+
+      xhr.send(formData);
+    }
+
+    function getMimeFromExt(ext) {
+      const map = {
+        ".pdf": "application/pdf",
+        ".doc": "application/msword",
+        ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        ".xls": "application/vnd.ms-excel",
+        ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        ".ppt": "application/vnd.ms-powerpoint",
+        ".pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        ".zip": "application/zip",
+        ".rar": "application/x-rar-compressed",
+        ".txt": "text/plain",
+        ".csv": "text/csv",
+        ".mp3": "audio/mpeg",
+        ".mp4": "video/mp4",
+        ".png": "image/png",
+        ".jpg": "image/jpeg",
+        ".jpeg": "image/jpeg"
+      };
+      return map[(ext || "").toLowerCase()] || "application/octet-stream";
+    }
+
+    // ==========================================
+    // 9. BULLETPROOF UNIVERSAL DOWNLOAD (PDF, DOC, IMAGE, VIDEO, ANDROID + WEB)
+    // ==========================================
+    function generateSignedCloudinaryDownloadUrl(file) {
+      if (!file.cloudinary_public_id) return null;
+
+      const resType = detectCloudinaryResourceType(file);
+      const timestamp = Math.floor(Date.now() / 1000);
+      const cleanName = (file.custom_name || "sharable_file").replace(/\.[^/.]+$/, "").replace(/[^a-zA-Z0-9_-]/g, "_") || "sharable_file";
+      const extMatch = (file.custom_name || "").match(/\.([a-zA-Z0-9]+)$/);
+      const format = extMatch ? extMatch[1].toLowerCase() : "";
+
+      let params = {};
+      params["attachment"] = "true";
+      if (format && resType !== "raw") {
+        params["format"] = format;
+      }
+      params["public_id"] = file.cloudinary_public_id;
+      params["target_filename"] = cleanName;
+      params["timestamp"] = timestamp;
+
+      const sortedKeys = Object.keys(params).sort();
+      const paramStr = sortedKeys.map(k => `${k}=${params[k]}`).join("&");
+      const signature = CryptoJS.SHA1(paramStr + CLOUDINARY_API_SECRET).toString();
+
+      const query = new URLSearchParams({
+        ...params,
+        api_key: CLOUDINARY_API_KEY,
+        signature: signature
+      });
+
+      return `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/${resType}/download?${query.toString()}`;
+    }
+
+    function buildCloudinaryAttachmentUrl(url, customName) {
+      const baseName = customName.replace(/\.[^/.]+$/, "").replace(/[^a-zA-Z0-9_-]/g, "_") || "sharable_file";
+      if (url.includes("/image/upload/")) {
+        return url.replace("/image/upload/", `/image/upload/fl_attachment:${baseName}/`);
+      }
+      if (url.includes("/video/upload/")) {
+        return url.replace("/video/upload/", `/video/upload/fl_attachment:${baseName}/`);
+      }
+      return url;
+    }
+
+    async function downloadFile(fileId, btnElement) {
+      const file = userFiles.find(f => f.id === fileId);
+      if (!file || !file.url) return;
+
+      const fileName = file.custom_name || "sharable_file";
+      const mimeType = file.mime_type || getMimeFromExt(fileName.substring(fileName.lastIndexOf(".")));
+      const signedDownloadUrl = generateSignedCloudinaryDownloadUrl(file);
+      const attachmentUrl = buildCloudinaryAttachmentUrl(file.url, fileName);
+
+      // 1. ANDROID APK NATIVE DOWNLOAD MANAGER
+      if (window.AndroidBridge && window.AndroidBridge.downloadFile) {
+        const targetAndroidUrl = signedDownloadUrl || (attachmentUrl !== file.url ? attachmentUrl : file.url);
+        window.AndroidBridge.downloadFile(targetAndroidUrl, fileName, mimeType);
+        showToast("Downloading " + fileName + " to Downloads...", "success");
+        return;
+      }
+
+      // 2. WEB BROWSER DOWNLOAD (PC & Mobile Chrome/Safari)
+      const originalHTML = btnElement ? btnElement.innerHTML : null;
+      if (btnElement) {
+        btnElement.disabled = true;
+        btnElement.innerHTML = `<i class="fa-solid fa-circle-notch fa-spin"></i> <span>Saving...</span>`;
+      }
+
+      try {
+        const response = await fetch(file.url, { mode: "cors" });
+        if (!response.ok) throw new Error("HTTP " + response.status);
+        
+        const rawBlob = await response.blob();
+        const typedBlob = new Blob([rawBlob], { type: mimeType });
+        const blobUrl = window.URL.createObjectURL(typedBlob);
+        
+        const tempLink = document.createElement("a");
+        tempLink.style.display = "none";
+        tempLink.href = blobUrl;
+        tempLink.setAttribute("download", fileName);
+        
+        document.body.appendChild(tempLink);
+        tempLink.click();
+        
+        setTimeout(() => {
+          document.body.removeChild(tempLink);
+          window.URL.revokeObjectURL(blobUrl);
+        }, 2000);
+
+        showToast("Downloaded: " + fileName, "success");
+      } catch (err) {
+        const fallbackUrl = signedDownloadUrl || (attachmentUrl !== file.url ? attachmentUrl : file.url);
+        const frame = document.getElementById("silentDownloadFrame");
+        frame.src = fallbackUrl;
+        showToast("Downloading " + fileName + "...", "info");
+      } finally {
+        if (btnElement && originalHTML) {
+          btnElement.disabled = false;
+          btnElement.innerHTML = originalHTML;
+        }
+      }
+    }
+
+    // ==========================================
+    // 10. FILTERING, SEARCH & RENDERING
+    // ==========================================
+    function setViewMode(mode) {
+      currentViewMode = mode;
+      const gridBtn = document.getElementById("viewGridBtn");
+      const listBtn = document.getElementById("viewListBtn");
+
+      if (mode === "grid") {
+        gridBtn.className = "p-2 rounded-lg bg-white dark:bg-slate-700 text-indigo-600 dark:text-white shadow-sm transition";
+        listBtn.className = "p-2 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition";
+      } else {
+        listBtn.className = "p-2 rounded-lg bg-white dark:bg-slate-700 text-indigo-600 dark:text-white shadow-sm transition";
+        gridBtn.className = "p-2 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition";
+      }
+      applyFilters();
+    }
+
+    function clearDateFilter() {
+      document.getElementById("dateFilterInput").value = "";
+      document.getElementById("clearDateBtn").classList.add("hidden");
+      applyFilters();
+    }
+
+    function applyFilters() {
+      const q = document.getElementById("searchInput").value.toLowerCase().trim();
+      const dateVal = document.getElementById("dateFilterInput").value;
+      const typeVal = document.getElementById("typeFilterSelect").value;
+      
+      const clearDateBtn = document.getElementById("clearDateBtn");
+      if (dateVal) {
+        clearDateBtn.classList.remove("hidden");
+      } else {
+        clearDateBtn.classList.add("hidden");
+      }
+
+      const filtered = userFiles.filter(item => {
+        const matchName = item.custom_name.toLowerCase().includes(q) || (item.original_name && item.original_name.toLowerCase().includes(q));
+        if (!matchName) return false;
+
+        if (dateVal) {
+          const itemDate = item.uploaded_at ? item.uploaded_at.substring(0, 10) : "";
+          if (itemDate !== dateVal) return false;
+        }
+
+        if (typeVal !== "all" && item.file_type !== typeVal) {
+          return false;
+        }
+
+        return true;
+      });
+
+      renderFiles(filtered);
+    }
+
+    function renderFiles(files) {
+      const container = document.getElementById("filesContainer");
+
+      if (files.length === 0) {
+        container.innerHTML = `
+          <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-12 text-center">
+            <div class="w-16 h-16 mx-auto mb-4 rounded-2xl bg-slate-100 dark:bg-slate-800 text-slate-400 flex items-center justify-center">
+              <i class="fa-regular fa-folder-open text-2xl"></i>
+            </div>
+            <h3 class="text-lg font-bold text-slate-800 dark:text-slate-200">No files found</h3>
+            <p class="text-sm text-slate-500 dark:text-slate-400 mt-1 max-w-sm mx-auto">
+              ${userFiles.length === 0 ? "Your Sharable vault is empty. Tap 'Upload File' to add your first file!" : "No files match your search and filter criteria."}
+            </p>
+          </div>
+        `;
+        return;
+      }
+
+      if (currentViewMode === "grid") {
+        let cards = `<div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">`;
+        files.forEach(file => {
+          cards += `
+            <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden group hover:border-indigo-500 dark:hover:border-indigo-500 transition-all flex flex-col shadow-sm">
+              <div onclick="openPreview('${file.id}')" class="h-44 bg-slate-100 dark:bg-slate-950 flex items-center justify-center cursor-pointer relative overflow-hidden">
+                ${renderThumbnail(file)}
+                <div class="absolute inset-0 bg-slate-900/40 opacity-0 group-hover:opacity-100 transition flex items-center justify-center text-white space-x-3">
+                  <span class="p-2.5 rounded-full bg-white/20 backdrop-blur-md hover:scale-110 transition"><i class="fa-solid fa-eye text-sm"></i></span>
+                </div>
+              </div>
+
+              <div class="p-4 flex-1 flex flex-col justify-between">
+                <div>
+                  <h4 class="font-bold text-sm text-slate-800 dark:text-slate-100 truncate" title="${escapeHtml(file.custom_name)}">${escapeHtml(file.custom_name)}</h4>
+                  <div class="flex items-center space-x-2 text-[11px] text-slate-400 mt-1">
+                    <span>${formatBytes(file.size)}</span>
+                    <span>•</span>
+                    <span>${formatDate(file.uploaded_at)}</span>
+                  </div>
+                </div>
+
+                <div class="flex items-center justify-between pt-3 mt-3 border-t border-slate-100 dark:border-slate-800">
+                  <button type="button" onclick="downloadFile('${file.id}', this)" class="text-xs font-semibold text-indigo-600 dark:text-indigo-400 active:scale-95 flex items-center space-x-1.5 cursor-pointer py-1">
+                    <i class="fa-solid fa-download"></i>
+                    <span>Download</span>
+                  </button>
+                  <button type="button" onclick="deleteFile('${file.id}', this)" class="text-slate-400 hover:text-rose-500 active:scale-90 p-1.5 text-xs" title="Delete File">
+                    <i class="fa-regular fa-trash-can"></i>
+                  </button>
+                </div>
+              </div>
+            </div>
+          `;
+        });
+        cards += `</div>`;
+        container.innerHTML = cards;
+      } else {
+        let table = `
+          <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-x-auto shadow-sm">
+            <table class="w-full text-left text-sm text-slate-600 dark:text-slate-300">
+              <thead class="bg-slate-50 dark:bg-slate-800/60 text-xs font-semibold uppercase text-slate-400 border-b border-slate-200 dark:border-slate-800">
+                <tr>
+                  <th class="py-3.5 px-4">File Name</th>
+                  <th class="py-3.5 px-4">Type</th>
+                  <th class="py-3.5 px-4">Size</th>
+                  <th class="py-3.5 px-4">Date Added</th>
+                  <th class="py-3.5 px-4 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
+        `;
+        files.forEach(file => {
+          table += `
+            <tr class="hover:bg-slate-50/50 dark:hover:bg-slate-800/40 transition">
+              <td class="py-3 px-4 font-semibold text-slate-900 dark:text-white flex items-center space-x-3 cursor-pointer" onclick="openPreview('${file.id}')">
+                <div class="w-8 h-8 rounded-lg bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 flex items-center justify-center flex-shrink-0">
+                  <i class="${getTypeIcon(file.file_type, file.custom_name)}"></i>
+                </div>
+                <span class="truncate max-w-[180px] sm:max-w-xs md:max-w-md">${escapeHtml(file.custom_name)}</span>
+              </td>
+              <td class="py-3 px-4 capitalize text-xs text-slate-400">${file.file_type}</td>
+              <td class="py-3 px-4 text-xs font-mono">${formatBytes(file.size)}</td>
+              <td class="py-3 px-4 text-xs text-slate-400">${formatDate(file.uploaded_at)}</td>
+              <td class="py-3 px-4 text-right space-x-1 whitespace-nowrap">
+                <button type="button" onclick="downloadFile('${file.id}', this)" class="px-2.5 py-1.5 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 rounded-lg inline-flex items-center space-x-1 text-xs font-semibold">
+                  <i class="fa-solid fa-download"></i>
+                  <span>Save</span>
+                </button>
+                <button type="button" onclick="deleteFile('${file.id}', this)" class="p-2 text-slate-400 hover:text-rose-500 rounded-lg text-xs">
+                  <i class="fa-regular fa-trash-can"></i>
+                </button>
+              </td>
+            </tr>
+          `;
+        });
+        table += `</tbody></table></div>`;
+        container.innerHTML = table;
+      }
+    }
+
+    function renderThumbnail(file) {
+      if (file.file_type === "image") {
+        return `<img src="${file.url}" alt="${escapeHtml(file.custom_name)}" class="w-full h-full object-cover">`;
+      }
+      const isPdf = (file.custom_name || "").toLowerCase().endsWith(".pdf");
+      return `
+        <div class="text-slate-400 flex flex-col items-center">
+          <i class="${getTypeIcon(file.file_type, file.custom_name)} text-4xl mb-2 ${isPdf ? 'text-rose-500' : 'text-indigo-500'}"></i>
+          <span class="text-[10px] uppercase font-bold tracking-widest text-slate-400">${isPdf ? 'PDF' : file.file_type}</span>
+        </div>
+      `;
+    }
+
+    function getTypeIcon(type, filename = "") {
+      if (filename.toLowerCase().endsWith(".pdf")) return "fa-solid fa-file-pdf";
+      switch (type) {
+        case "image": return "fa-solid fa-image";
+        case "video": return "fa-solid fa-video";
+        case "audio": return "fa-solid fa-music";
+        case "archive": return "fa-solid fa-file-zipper";
+        default: return "fa-solid fa-file-lines";
+      }
+    }
+
+    // ==========================================
+    // 11. PREVIEW & PERMANENT CLOUDINARY + FIREBASE DELETE
+    // ==========================================
+    function openPreview(fileId) {
+      const file = userFiles.find(f => f.id === fileId);
+      if (!file) return;
+
+      document.getElementById("previewTitle").innerText = file.custom_name;
+      document.getElementById("previewMeta").innerText = `${formatBytes(file.size)} • Added on ${formatDate(file.uploaded_at)}`;
+      
+      const dlBtn = document.getElementById("previewDownloadBtn");
+      dlBtn.onclick = function() { downloadFile(file.id, dlBtn); };
+
+      const body = document.getElementById("previewBody");
+      body.innerHTML = "";
+
+      if (file.file_type === "image") {
+        body.innerHTML = `<img src="${file.url}" alt="${escapeHtml(file.custom_name)}" class="max-h-[65vh] max-w-full object-contain rounded-lg">`;
+      } else if (file.file_type === "video") {
+        body.innerHTML = `<video controls autoplay class="max-h-[65vh] max-w-full rounded-lg shadow-md"><source src="${file.url}"></video>`;
+      } else if (file.file_type === "audio") {
+        body.innerHTML = `
+          <div class="bg-white dark:bg-slate-900 p-8 rounded-2xl shadow-md text-center max-w-md w-full">
+            <i class="fa-solid fa-compact-disc text-5xl text-indigo-500 mb-4"></i>
+            <p class="font-bold mb-4 text-slate-800 dark:text-slate-100">${escapeHtml(file.custom_name)}</p>
+            <audio controls class="w-full"><source src="${file.url}"></audio>
+          </div>
+        `;
+      } else {
+        const isPdf = (file.custom_name || "").toLowerCase().endsWith(".pdf");
+        body.innerHTML = `
+          <div class="text-center p-8 bg-white dark:bg-slate-900 rounded-2xl shadow-md max-w-sm">
+            <i class="${getTypeIcon(file.file_type, file.custom_name)} text-5xl ${isPdf ? 'text-rose-500' : 'text-indigo-500'} mb-3"></i>
+            <h4 class="font-bold text-slate-800 dark:text-slate-100 mb-1">${escapeHtml(file.custom_name)}</h4>
+            <p class="text-xs text-slate-400 mb-4">Tap below to save this file directly to your device.</p>
+            <button type="button" onclick="downloadFile('${file.id}', this)" class="px-5 py-2.5 bg-indigo-600 text-white rounded-xl text-xs font-semibold shadow hover:bg-indigo-700 transition inline-flex items-center space-x-1.5">
+              <i class="fa-solid fa-download"></i>
+              <span>Download File</span>
+            </button>
+          </div>
+        `;
+      }
+
+      document.getElementById("previewModal").classList.remove("hidden");
+    }
+
+    function closePreviewModal() {
+      document.getElementById("previewModal").classList.add("hidden");
+      document.getElementById("previewBody").innerHTML = "";
+    }
+
+    function detectCloudinaryResourceType(file) {
+      if (file.cloudinary_resource_type && file.cloudinary_resource_type !== "auto") {
+        return file.cloudinary_resource_type;
+      }
+      if (file.url) {
+        if (file.url.includes("/video/upload/")) return "video";
+        if (file.url.includes("/raw/upload/")) return "raw";
+        if (file.url.includes("/image/upload/")) return "image";
+      }
+      if (file.file_type === "video" || file.file_type === "audio") return "video";
+      if (file.file_type === "document" || file.file_type === "archive") return "raw";
+      return "image";
+    }
+
+    async function deleteFromCloudinary(publicId, resourceType) {
+      if (!publicId) return { result: "no_public_id" };
+      const timestamp = Math.floor(Date.now() / 1000);
+      const stringToSign = `invalidate=true&public_id=${publicId}&timestamp=${timestamp}${CLOUDINARY_API_SECRET}`;
+      const signature = CryptoJS.SHA1(stringToSign).toString();
+
+      const formData = new FormData();
+      formData.append("public_id", publicId);
+      formData.append("api_key", CLOUDINARY_API_KEY);
+      formData.append("timestamp", timestamp);
+      formData.append("invalidate", "true");
+      formData.append("signature", signature);
+
+      const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/${resourceType}/destroy`, {
+        method: "POST",
+        body: formData
+      });
+      return res.json();
+    }
+
+    async function deleteFile(fileId, btnElement) {
+      const file = userFiles.find(f => f.id === fileId);
+      if (!file) return;
+
+      const confirmed = await showCustomConfirm({
+        title: "Permanently Delete File?",
+        message: `"${file.custom_name}" will be permanently deleted from both Sharable and Cloudinary storage.`,
+        confirmText: "Delete Permanently",
+        isDanger: true
+      });
+      if (!confirmed) return;
+
+      if (btnElement) {
+        btnElement.disabled = true;
+        btnElement.innerHTML = `<i class="fa-solid fa-circle-notch fa-spin text-rose-500"></i>`;
+      }
+
+      try {
+        if (file.cloudinary_public_id) {
+          const primaryType = detectCloudinaryResourceType(file);
+          let cloudRes = await deleteFromCloudinary(file.cloudinary_public_id, primaryType);
+
+          if (cloudRes && cloudRes.result === "not found") {
+            const fallbacks = ["raw", "image", "video"].filter(t => t !== primaryType);
+            for (const fbType of fallbacks) {
+              const retryRes = await deleteFromCloudinary(file.cloudinary_public_id, fbType);
+              if (retryRes && retryRes.result === "ok") {
+                cloudRes = retryRes;
+                break;
+              }
+            }
+          }
+
+          if (cloudRes && cloudRes.error) {
+            throw new Error(cloudRes.error.message || "Cloudinary deletion rejected");
+          }
+        }
+
+        await db.ref("lockers/" + currentVaultCode + "/files/" + fileId).remove();
+        showToast("Permanently deleted", "success");
+      } catch (err) {
+        showToast("Failed to delete: " + err.message, "error");
+        if (btnElement) {
+          btnElement.disabled = false;
+          btnElement.innerHTML = `<i class="fa-regular fa-trash-can"></i>`;
+        }
+      }
+    }
+
+    // ==========================================
+    // UTILITIES
+    // ==========================================
+    function formatBytes(bytes, decimals = 2) {
+      if (!+bytes) return '0 B';
+      const k = 1024;
+      const dm = decimals < 0 ? 0 : decimals;
+      const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+      const i = Math.floor(Math.log(bytes) / Math.log(k));
+      return `${parseFloat((bytes / Math.pow(k, i)).toFixed(dm))} ${sizes[i]}`;
+    }
+
+    function formatDate(isoStr) {
+      if (!isoStr) return "";
+      const d = new Date(isoStr);
+      return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+    }
+
+    function escapeHtml(string) {
+      const entityMap = {
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#39;'
+      };
+      return String(string).replace(/[&<>"']/g, s => entityMap[s]);
+    }
+
+    window.addEventListener("DOMContentLoaded", () => {
+      initTheme();
+      initPatternPad();
+      const savedLocker = localStorage.getItem("sharable_active_code");
+      const savedOwner = localStorage.getItem("sharable_active_owner") || "Personal";
+      if (savedLocker) {
+        enterDashboard(savedLocker, savedOwner);
+      }
+    });
   </script>
 </body>
 </html>

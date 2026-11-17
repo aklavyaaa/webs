@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title></title>
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      background: #0a0a0a;
+    }
+  </style>
+</head>
+<body>
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js";
+    import { getDatabase, ref, get } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-database.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyBI9HYSZShgwMLD0IGtFFk-QACxSkZ9DXM",
+      authDomain: "webprojects-7b9b2.firebaseapp.com",
+      databaseURL: "https://webprojects-7b9b2-default-rtdb.firebaseio.com",
+      projectId: "webprojects-7b9b2",
+      storageBucket: "webprojects-7b9b2.firebasestorage.app",
+      messagingSenderId: "345992812956",
+      appId: "1:345992812956:web:3e99f5920fe99195ae9059",
+      measurementId: "G-6W5DMRZS6L"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getDatabase(app);
+
+    // Defaults to 'web1', or loads another node if you visit yoursite.com/?p=web2
+    const params = new URLSearchParams(window.location.search);
+    const nodeKey = params.get("p") || "web1";
+
+    get(ref(db, nodeKey))
+      .then((snapshot) => {
+        if (snapshot.exists()) {
+          const htmlCode = snapshot.val();
+          document.open();
+          document.write(htmlCode);
+          document.close();
+        }
+      })
+      .catch((error) => {
+        console.error(error);
+      });
+  </script>
+</body>
+</html>
